@@ -1,0 +1,1285 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>BOTRUN — a FinnBots game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jersey+15&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --plum:#5f4c57; --plum-deep:#3e323a; --amber:#f2a03d; --electric:#3a6ff7;
+    --peach:#f5c8a0; --soft:#fdf3e7; --ink:#3e323a; --muted:#8a7a82; --red:#c0392b;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s6:24px;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px;
+    --sh1:0 1px 2px rgba(62,50,58,.12); --sh2:0 4px 14px rgba(62,50,58,.16);
+    --disp:'Jersey 15',system-ui,sans-serif; --body:'Plus Jakarta Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100dvh;overflow:hidden;margin:0}
+  body{ font-family:var(--body); color:var(--ink);
+    background:radial-gradient(120% 80% at 50% 0%, var(--soft), var(--peach));
+    -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none; touch-action:none; }
+  .wrap{height:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;padding:var(--s3);gap:var(--s2)}
+  .topbar{display:flex;align-items:center;gap:var(--s3);min-height:34px}
+  .pill{font-family:var(--disp);font-size:15px;letter-spacing:.5px;color:#fff;background:var(--plum);padding:2px var(--s3);border-radius:999px;box-shadow:var(--sh1);white-space:nowrap}
+  .title{font-family:var(--disp);font-size:26px;line-height:1;color:var(--plum-deep);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .iconbtn{appearance:none;border:0;background:#fff;color:var(--plum);width:32px;height:32px;border-radius:50%;font-family:var(--disp);font-size:18px;box-shadow:var(--sh1);cursor:pointer}
+  .iconbtn:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
+  .modebar{display:flex;gap:var(--s1);background:rgba(255,255,255,.5);border-radius:999px;padding:3px;box-shadow:var(--sh1)}
+  .modepill{flex:1;appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:14px;padding:5px 10px;border-radius:999px;background:transparent;color:var(--muted)}
+  .modepill.active{background:var(--amber);color:var(--plum-deep)}
+  .modepill:disabled{opacity:.5;cursor:default}
+  .modepill:focus-visible{outline:2px solid var(--electric);outline-offset:2px}
+  .testBanner{background:var(--amber);color:#4a2c10;font-weight:700;text-align:center;font-size:12px;padding:5px 10px;border-radius:var(--r-md)}
+  .testBanner.hidden{display:none}
+  .walletbar{display:none;flex-direction:column;gap:5px;background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:7px var(--s3);box-shadow:var(--sh1)}
+  body.mode-paid .walletbar{display:flex}
+  .walletrow{display:flex;align-items:center;gap:8px}
+  .walletrow .lbl{font-size:12px;color:var(--plum-deep);flex:1;line-height:1.3}
+  .connect-btn{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:14px;background:var(--plum);color:#fff;padding:6px 16px;border-radius:999px;box-shadow:var(--sh1)}
+  .connect-btn:disabled{opacity:.6;cursor:default}
+  .wallet-status{font-size:12px;color:var(--muted);line-height:1.35}
+  .wallet-status.hidden{display:none}
+  .wallet-status.ok{color:var(--plum-deep)} .wallet-status.warn{color:var(--red)}
+  .wallet-status .addr{font-family:ui-monospace,monospace;color:var(--plum)}
+  .facts{font-size:12.5px;color:var(--plum-deep);background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:6px var(--s3);text-align:center;min-height:30px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--sh1)}
+  .facts b{font-weight:700}
+  .dot-sep{opacity:.4}
+  .hud{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--s2) var(--s3);font-family:var(--disp);color:var(--plum-deep);background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:6px var(--s4);min-height:34px;box-shadow:var(--sh1)}
+  .hud .lab{font-size:11px;color:var(--muted);letter-spacing:1px}
+  .hud .val{font-size:18px;line-height:1}
+  .hud .val.warn{color:var(--red)}
+  .lives{display:inline-flex;gap:4px;align-items:center}
+  .life{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:var(--sh1)}
+  .life.off{background:rgba(0,0,0,.14);box-shadow:none}
+  .surface{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+  /* Canvas fit — width-driven + letterbox. Tune aspect-ratio to your game (e.g. 9/16 portrait, 3/2 landscape). */
+  canvas{ width:100%;height:auto;max-width:100%;max-height:100%;aspect-ratio:16/9;background:#20150f;border-radius:var(--r-lg);box-shadow:var(--sh2);image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none; }
+  .controls{display:flex;gap:var(--s6);align-items:center;justify-content:center;background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:6px var(--s4);box-shadow:var(--sh1)}
+  .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px);gap:4px}
+  .ctl{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:20px;color:var(--plum-deep);background:#fff;border-radius:var(--r-sm);box-shadow:var(--sh1);touch-action:none;user-select:none;-webkit-user-select:none;display:flex;align-items:center;justify-content:center}
+  .ctl:active,.ctl.on{transform:translateY(1px);background:var(--amber)}
+  .ctl:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
+  .ctl.fire{font-size:13px;color:#fff;background:var(--plum)}
+  .ctl.fire:active,.ctl.fire.on{background:var(--plum-deep)}
+  #padU{grid-area:1/2/2/3} #padL{grid-area:2/1/3/2} #padFire{grid-area:2/2/3/3} #padR{grid-area:2/3/3/4} #padD{grid-area:3/2/4/3}
+  .foot{text-align:center;min-height:28px}
+  .foot .tag{font-family:var(--disp);font-size:13px;color:var(--muted);letter-spacing:.5px}
+  .foot .links{font-size:12px;margin-top:1px}
+  .foot a{color:var(--muted);text-decoration:none;margin:0 6px}
+  .foot a:hover{color:var(--plum)}
+  .foot a:focus-visible{outline:2px solid var(--electric);outline-offset:2px;border-radius:3px}
+  .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(42,34,48,.55);backdrop-filter:blur(2px);padding:var(--s4);z-index:20}
+  .overlay.show{display:flex}
+  body.mode-paid .modebar,body.mode-paid .walletbar{position:relative;z-index:21}
+  .card{background:var(--soft);border-radius:var(--r-xl);box-shadow:var(--sh2);max-width:380px;width:100%;padding:var(--s6);text-align:center}
+  .card h2{font-family:var(--disp);font-size:30px;margin:0 0 var(--s2);color:var(--plum-deep)}
+  .card.win h2{color:var(--amber)}
+  .card p{font-size:13.5px;line-height:1.5;margin:var(--s2) 0;color:var(--plum-deep)}
+  .card .big{font-family:var(--disp);font-size:22px;color:var(--plum-deep);margin:var(--s3) 0}
+  .card .big span{color:var(--amber)}
+  .btn{appearance:none;border:0;font-family:var(--disp);font-size:18px;color:#fff;background:var(--plum);padding:10px var(--s6);border-radius:999px;cursor:pointer;box-shadow:var(--sh1);margin-top:var(--s3)}
+  .btn:hover{background:var(--plum-deep)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
+  .rules{text-align:left}
+  .rules li{font-size:13px;line-height:1.55;margin:5px 0}
+  .safe{font-size:11.5px;color:var(--muted);margin-top:var(--s3)}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  .sheet{position:fixed;inset:0;background:rgba(42,34,48,.6);display:none;align-items:center;justify-content:center;padding:var(--s4);z-index:30}
+  .sheet.show{display:flex}
+  .panel{width:100%;max-width:340px;background:var(--soft);border-radius:var(--r-xl);padding:var(--s6);box-shadow:var(--sh2);text-align:center}
+  .panel h2{font-family:var(--disp);font-size:24px;margin:0 0 var(--s2);color:var(--plum-deep)}
+  .panel p{font-size:13px;color:var(--plum-deep);margin:0 0 var(--s4);line-height:1.5}
+  .panel .again{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:16px;background:var(--amber);color:#4a2c10;padding:11px var(--s6);border-radius:999px;display:block;width:100%;margin-bottom:var(--s2);box-shadow:var(--sh1)}
+  .panel .ghostbtn{appearance:none;border:1px solid rgba(95,76,87,.25);cursor:pointer;font-family:var(--body);font-weight:600;font-size:14px;background:transparent;color:var(--plum);padding:9px 18px;border-radius:999px;display:block;width:100%;box-sizing:border-box;text-decoration:none;margin-bottom:var(--s2)}
+  .panel .ghostbtn:last-child{margin-bottom:0}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <span class="pill">BOT GAMES</span>
+      <h1 class="title">BOTRUN</h1>
+      <button class="iconbtn" id="muteBtn" aria-label="Mute" title="Mute (M)">🔊</button>
+      <button class="iconbtn" id="restartBtn" aria-label="Restart" title="Restart (R)">⟲</button>
+      <button class="iconbtn" id="infoBtn" aria-label="How to play">ⓘ</button>
+    </header>
+
+    <div class="modebar" role="tablist" aria-label="Play mode">
+      <button class="modepill active" id="modeFree" type="button" role="tab">Free play</button>
+      <button class="modepill" id="modePaid" type="button" role="tab">Paid · 25 OIL</button>
+    </div>
+
+    <div class="testBanner hidden" id="testBanner">🧪 TEST MODE — local validator, fake $OIL. No real value moves.</div>
+
+    <div class="walletbar" id="walletbar">
+      <div class="walletrow">
+        <span class="lbl">Paid — 25 OIL entry · fun leaderboard, not verified</span>
+        <button class="connect-btn" id="connectBtn" type="button">Connect</button>
+      </div>
+      <div class="wallet-status hidden" id="walletStatus"></div>
+    </div>
+
+    <div class="facts" id="facts">
+      <span>Free to play</span><span class="dot-sep">·</span>
+      <span>wallet-free</span><span class="dot-sep">·</span>
+      <span><b>pays nothing</b></span>
+    </div>
+
+    <div class="hud" aria-live="polite">
+      <div><span class="lab">SCORE </span><span class="val" id="score">000000</span></div>
+      <div><span class="lab">TIME </span><span class="val" id="stat1">0</span></div>
+      <div><span class="lab">SPEED </span><span class="val" id="lives">0 · L</span></div>
+    </div>
+
+    <main class="surface">
+      <canvas id="game" width="480" height="270" aria-label="BOTRUN play area."></canvas>
+    </main>
+
+    <div class="controls" aria-label="Controls">
+      <div class="dpad">
+        <button class="ctl" id="padU" type="button" aria-label="Up">▲</button>
+        <button class="ctl" id="padL" type="button" aria-label="Left">◀</button>
+        <button class="ctl fire" id="padFire" type="button" aria-label="Fire">GO</button>
+        <button class="ctl" id="padR" type="button" aria-label="Right">▶</button>
+        <button class="ctl" id="padD" type="button" aria-label="Down">▼</button>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <div class="tag">a FinnBots game</div>
+      <div class="links">
+        <a href="https://magiceden.io/marketplace/finnbot" target="_blank" rel="noopener">Buy a Bot</a>·
+        <a href="https://games.finnstergram.com/" target="_blank" rel="noopener">More games</a>·
+        <a href="https://run.finnstergram.com/leaderboard.html" target="_blank" rel="noopener">Leaderboard</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Rules overlay (auto-opens as an intro on first load) -->
+  <div class="overlay" id="rulesOverlay" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <div class="card">
+      <h2 id="rulesTitle">HOW TO PLAY</h2>
+      <ul class="rules">
+        <li><b>Beat the clock.</b> Reach each CHECK POINT before TIME hits 0 — crossing it <b>adds</b> time. Five stages to a GOAL.</li>
+        <li><b>Steer:</b> ◀ ▶ / A D / arrows (or drag on screen). <b>Accel:</b> ▲ / W / Up (or hold the screen). <b>Brake:</b> ▼ / S. <b>Gear L/H:</b> GO / Space.</li>
+        <li><b>Two gears:</b> L is quick but tops out ~180; H is slow off the line but reaches ~293 — shift up near L's redline.</li>
+        <li>The road <b>forks</b> after each stage — the lane you're in picks the route. Pass traffic for points; a crash costs seconds, not the clock.</li>
+      </ul>
+      <p class="safe">Free play never touches a wallet, never asks for a seed phrase, and never moves a Bot.</p>
+      <button class="btn" id="rulesClose">Got it</button>
+    </div>
+  </div>
+
+  <!-- Game-over overlay (FREE) -->
+  <div class="overlay" id="overOverlay" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div class="card" id="overCard">
+      <h2 id="overTitle">RUN OVER</h2>
+      <div class="big">SCORE <span id="oScore">0</span></div>
+      <p>Time <b id="oTime">0:00</b></p>
+      <button class="btn" id="retryBtn">Tap to retry</button>
+    </div>
+  </div>
+
+  <!-- Paid overlay (start/run-over card; innerHTML written by the Paid controller) -->
+  <div class="overlay" id="paidOverlay" role="dialog" aria-modal="true"></div>
+
+  <!-- Kid-safety confirm gate (before any wallet code runs) -->
+  <div class="sheet" id="confirmSheet"><div class="panel">
+    <h2>Play BOTRUN — Paid</h2>
+    <p>One entry = one run. Costs <b>25 OIL</b> to the treasury (a sink). Pays nothing out — you're playing for a leaderboard spot. Bot holders: score ×1.5.<br/><br/>A <b>fun ranking</b> — not verified.</p>
+    <button class="again" id="confirmEnter" type="button">Connect &amp; Pay</button>
+    <button class="ghostbtn" id="confirmBack" type="button">Cancel</button>
+  </div></div>
+
+  <!-- Score-posted sheet -->
+  <div class="sheet" id="postedSheet"><div class="panel">
+    <h2>Score posted!</h2>
+    <p id="posted-text"></p>
+    <a class="ghostbtn" id="viewLb" href="https://run.finnstergram.com/leaderboard.html" target="_blank" rel="noopener">View leaderboard →</a>
+    <button class="again" id="againBtn" type="button">Play again (25 OIL)</button>
+  </div></div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   BOTRUN — FinnBots. ENGINE (Free gameplay). Out Run-loop pseudo-3D racer.
+   Pure sim (newRun/stepGame + track/physics/forks/traffic) is DOM-free so the
+   VERIFY termination sim can require() it; the DOM/render/input half is browser.
+   Contract kept: export {newRun,stepGame}; window.BOTRUNEngine{start,idle,resumeFree};
+   hand run-end to window.BOTRUNPaid.onRunEnd; no wallet/money symbols in here.
+   ========================================================================== */
+
+const CFG = { name:'BOTRUN', memoNS:'BRUN', chassis:'sink-leaderboard',
+              subdomain:'run.finnstergram.com', port:9016, hero:106, accent:'#3a6ff7', entryOIL:25, scorePost:1 };
+
+/* ===================== ROAD / WORLD CONSTANTS ============================= */
+const SEG_LEN   = 200;      // world units per road segment
+const RUMBLE    = 3;        // segments per rumble stripe
+const ROAD_W    = 2000;     // half-road width in world units
+const DRAW_DIST = 140;      // segments drawn ahead
+const CAM_H     = 1000;     // camera height above road
+const CAM_DEPTH = 0.84;     // 1/tan(fov/2), ~100deg fov
+const LANES     = 3;        // traffic lanes each side of centre-ish
+const W = 480, H = 270;     // internal render resolution (16:9 landscape)
+
+const MAXSPD   = 12000;         // H top speed (world u/s)  -> displayed 293 km/h
+const TO_KMH   = MAXSPD/293;    // speed -> km/h divisor
+const MAX_L    = 180*TO_KMH;    // L redline speed
+const OFF_MAX  = 120*TO_KMH;    // off-road speed cap
+const ACC_L    = MAX_L/2.6;     // L: quick accel
+const ACC_HMIN = 850;           // H: crawls from low RPM
+const ACC_HMAX = 4200;          // H: strong once wound up
+const ENG_BRK  = 1500;          // coast engine-brake
+const BRAKE    = 9500;          // brake decel
+const OFF_DRAG = 7000;          // off-road extra drag
+const CENTRIFUGAL = 0.32;       // how hard curves push you out
+
+/* ===================== COURSE TREE (15 stages, 5 goals) ================== */
+// left is generally kinder, right meaner. letter set only on goal (stage-5) nodes.
+const STAGES = {
+  '1' :{name:'OIL BEACH',   len:1200, curve:0.9, hill:0.6, traffic:0.35, spr:'palm',  L:'2A', R:'2B',
+        pal:{sky:'#8fd0e8', hill:'#6fae8f', grass1:'#e6c98a', grass2:'#d7b46f', road1:'#6b6b74', road2:'#63636c', rum1:'#f4f4f8', rum2:'#c04040', lane:'#f4f4f8'}},
+  '2A':{name:'CAM GATE',    len:1300, curve:1.25,hill:0.5, traffic:0.5,  spr:'arch',  L:'3A', R:'3B',
+        pal:{sky:'#b7c6e0', hill:'#7c8aa8', grass1:'#8fa08a', grass2:'#7d8e79', road1:'#5c5c66', road2:'#54545e', rum1:'#e8c14a', rum2:'#3e323a', lane:'#e8e8ee'}},
+  '2B':{name:'HATCH CANYON',len:1300, curve:1.7, hill:0.9, traffic:0.5,  spr:'wall',  L:'3B', R:'3C',
+        pal:{sky:'#e8a463', hill:'#9c4f2e', grass1:'#c56a3a', grass2:'#a9552c', road1:'#66605e', road2:'#5d5754', rum1:'#f2d0a0', rum2:'#5a2c18', lane:'#f2ead8'}},
+  '3A':{name:'DRUM DESERT', len:1450, curve:1.3, hill:0.7, traffic:0.35, spr:'drum',  L:'4A', R:'4B',
+        pal:{sky:'#f0cf8f', hill:'#c79a5a', grass1:'#e3c47f', grass2:'#d4b06a', road1:'#6a6660', road2:'#615d58', rum1:'#fff', rum2:'#b04a2a', lane:'#fff'}},
+  '3B':{name:'ALPS BAY',    len:1450, curve:1.9, hill:1.3, traffic:0.5,  spr:'pine',  L:'4B', R:'4C',
+        pal:{sky:'#9fd6ee', hill:'#5f7f9c', grass1:'#4f8f5a', grass2:'#437d4e', road1:'#5a5a64', road2:'#52525c', rum1:'#fff', rum2:'#3a6ff7', lane:'#fff'}},
+  '3C':{name:'TICKER RIDGE',len:1450, curve:1.55,hill:1.5, traffic:0.5,  spr:'pole',  L:'4C', R:'4D',
+        pal:{sky:'#c9d2da', hill:'#9aa4ac', grass1:'#8f9aa0', grass2:'#828d93', road1:'#5e5e66', road2:'#56565e', rum1:'#eee', rum2:'#8a7a82', lane:'#eee'}},
+  '4A':{name:'WILD SCRAP',  len:1600, curve:1.7, hill:0.8, traffic:0.75, spr:'scrap', L:'5A', R:'5B',
+        pal:{sky:'#b8a690', hill:'#7a6a58', grass1:'#8a7a5a', grass2:'#78694e', road1:'#5a544e', road2:'#524d47', rum1:'#f2a03d', rum2:'#3e323a', lane:'#e0e0d0'}},
+  '4B':{name:'OLD BAY',     len:1600, curve:1.85,hill:0.7, traffic:0.8,  spr:'bldg',  L:'5B', R:'5C',
+        pal:{sky:'#c4b0c0', hill:'#7a6478', grass1:'#6f5f6a', grass2:'#63545e', road1:'#585460', road2:'#504c58', rum1:'#f2a03d', rum2:'#3e323a', lane:'#eee'}},
+  '4C':{name:'WHEAT OIL',   len:1600, curve:1.5, hill:1.1, traffic:0.6,  spr:'pole',  L:'5C', R:'5D',
+        pal:{sky:'#f2d98f', hill:'#c9a94f', grass1:'#dcc25a', grass2:'#cbb04c', road1:'#66625a', road2:'#5d5952', rum1:'#fff', rum2:'#a06a1a', lane:'#fff'}},
+  '4D':{name:'SIP TOWN',    len:1650, curve:2.0, hill:0.9, traffic:0.85, spr:'wallsea',L:'5D', R:'5E',
+        pal:{sky:'#6fc6d6', hill:'#3f8fa0', grass1:'#2f9fb0', grass2:'#2a8fa0', road1:'#58585e', road2:'#505056', rum1:'#fff', rum2:'#c0392b', lane:'#fff'}},
+  '5A':{name:'VINE BAY',    len:1500, curve:1.2, hill:0.9, traffic:0.3,  spr:'vine',  letter:'A', goalMsg:'parked in the shade',
+        pal:{sky:'#9fe0b0', hill:'#4f9f6a', grass1:'#3f9f5a', grass2:'#368a4e', road1:'#5a5a64', road2:'#52525c', rum1:'#fff', rum2:'#2f8f4a', lane:'#fff'}},
+  '5B':{name:'DEATH VALVE', len:1550, curve:2.4, hill:1.4, traffic:0.5,  spr:'rock',  letter:'B', goalMsg:'still in one piece',
+        pal:{sky:'#3a3450', hill:'#2a2440', grass1:'#4a3a4a', grass2:'#3e323a', road1:'#5a5460', road2:'#524c58', rum1:'#f2a03d', rum2:'#c0392b', lane:'#e0e0e0'}},
+  '5C':{name:'STONE HILL',  len:1500, curve:1.7, hill:1.3, traffic:0.5,  spr:'rock',  letter:'C', goalMsg:'best seat on the ridge',
+        pal:{sky:'#c6cbd0', hill:'#8a8f96', grass1:'#7f858a', grass2:'#72787d', road1:'#5e5e66', road2:'#56565e', rum1:'#fff', rum2:'#8a7a82', lane:'#fff'}},
+  '5D':{name:'DUAL WAY',    len:1600, curve:1.35,hill:0.6, traffic:0.95, spr:'pole',  letter:'D', goalMsg:'two lanes, one Bot',
+        pal:{sky:'#8fb0e0', hill:'#5f7fa8', grass1:'#5f8f6a', grass2:'#537d5e', road1:'#54545e', road2:'#4c4c56', rum1:'#fff', rum2:'#3a6ff7', lane:'#fff'}},
+  '5E':{name:'LAKE SIP',    len:1550, curve:1.6, hill:0.8, traffic:0.5,  spr:'palm',  letter:'E', goalMsg:'Sip poured one for the lake',
+        pal:{sky:'#7ec8e3', hill:'#3f8fb0', grass1:'#3aa0c0', grass2:'#3390b0', road1:'#5a5a64', road2:'#52525c', rum1:'#fff', rum2:'#3a6ff7', lane:'#fff'}}
+};
+
+// checkpoint time added after clearing each stage (1..4). carries over.
+const EXTEND = { 1:65, 2:60, 3:55, 4:50 };
+const START_TIME = 80;
+
+/* ===================== seeded RNG (deterministic tracks) ================= */
+function mkRng(seed){ let a=seed>>>0; return function(){ a=(a*1664525+1013904223)>>>0; return a/4294967296; }; }
+function seedOf(id){ let h=2166136261; for(let i=0;i<id.length;i++){ h^=id.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+
+/* ===================== track builder ===================================== */
+function easeIn(a,b,p){ return a+(b-a)*p*p; }
+function easeOut(a,b,p){ return a+(b-a)*(1-(1-p)*(1-p)); }
+function easeInOut(a,b,p){ return a+(b-a)*(-Math.cos(p*Math.PI)/2+0.5); }
+
+function buildStage(id){
+  const st = STAGES[id];
+  const rng = mkRng(seedOf(id));
+  const segs = [];
+  let y = 0; // running world height
+  function last(){ return segs.length ? segs[segs.length-1] : null; }
+  function addSeg(curve, yEnd){
+    const n = segs.length;
+    const yStart = last()? last().p2y : 0;
+    segs.push({ index:n, curve:curve,
+      p1y:yStart, p2y:yEnd,
+      sprites:[], cars:[], checkpoint:false });
+    y = yEnd;
+  }
+  function addRoad(enter, hold, leave, curve, hillH){
+    const startY = last()? last().p2y : 0;
+    const endY   = startY + hillH;
+    let n;
+    for(n=0;n<enter;n++) addSeg(easeIn(0,curve,n/enter),  easeInOut(startY,endY,(n)/(enter+hold+leave)));
+    for(n=0;n<hold; n++) addSeg(curve,                    easeInOut(startY,endY,(enter+n)/(enter+hold+leave)));
+    for(n=0;n<leave;n++) addSeg(easeInOut(curve,0,n/leave),easeInOut(startY,endY,(enter+hold+n)/(enter+hold+leave)));
+  }
+  // assemble the stage from randomised chunks up to target length
+  const cM = st.curve, hM = st.hill;
+  addRoad(20,30,20, 0, 0); // gentle lead-in straight
+  while(segs.length < st.len - 60){
+    const r = rng();
+    const dir = rng()<0.5 ? -1 : 1;
+    const strength = (1.5 + rng()*3.5) * cM * dir;
+    const hillH = (rng()-0.4) * 900 * hM;
+    const enter = 12+Math.floor(rng()*16), hold = 16+Math.floor(rng()*40), leave = 12+Math.floor(rng()*16);
+    if(r < 0.28){ addRoad(20+Math.floor(rng()*30), 30+Math.floor(rng()*50), 20, 0, hillH); } // straight w/ hill
+    else if(r < 0.55){ addRoad(enter,hold,leave, strength, hillH*0.5); }                      // curve
+    else if(r < 0.78){ addRoad(10,18,10, strength*1.6, hillH*0.3); }                          // sharp
+    else { addRoad(enter,hold,leave, strength*0.6, hillH); addRoad(enter,hold,leave,-strength*0.6, -hillH*0.4); } // S
+  }
+  addRoad(20,30,20, 0, 0); // level run-out to the checkpoint/goal line
+  // trim to exact length is unnecessary; mark the last segment as the line
+  const finish = segs.length-1;
+  segs[finish].checkpoint = true;
+
+  // roadside scenery + hazards
+  for(let i=8;i<segs.length-8;i++){
+    if(i % 6 === 0){ segs[i].sprites.push({ side:-1, off:-2.0-rng()*2.5, type:st.spr }); }
+    if(i % 7 === 0){ segs[i].sprites.push({ side: 1, off: 2.0+rng()*2.5, type:st.spr }); }
+    // occasional near-edge solid hazard
+    if(i % 23 === 0){ const sd = rng()<0.5?-1:1; segs[i].sprites.push({ side:sd, off:sd*(1.15+rng()*0.25), type:st.spr, solid:true }); }
+  }
+
+  // traffic — density by stage. cars carry z, lane offset, speed, type, passed.
+  const cars = [];
+  const density = st.traffic;
+  const nCars = Math.floor(st.len/70 * density) + 4;
+  const trafType = ['cam','sip','ticker'];
+  for(let c=0;c<nCars;c++){
+    const segIdx = 30 + Math.floor(rng()*(segs.length-60));
+    const lane = (Math.floor(rng()*LANES) - (LANES-1)/2); // -1,0,1
+    const off = lane * 0.55;
+    const t = trafType[Math.floor(rng()*trafType.length)];
+    const base = t==='ticker' ? 80 : (90+rng()*90); // km/h
+    cars.push({ z: segIdx*SEG_LEN, off:off, speed: base*TO_KMH, type:t, passed:false, lane:off });
+  }
+
+  return { id, name:st.name, letter:st.letter||null, goalMsg:st.goalMsg||'', pal:st.pal, spr:st.spr,
+           L:st.L||null, R:st.R||null, segs, cars, len:segs.length, trackLen: segs.length*SEG_LEN, isGoal: !!st.letter };
+}
+
+/* ===================== helpers ========================================== */
+function findSeg(track, z){ return track.segs[Math.floor(z/SEG_LEN) % track.segs.length]; }
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+
+/* ===================== NEW RUN =========================================== */
+function newRun(){
+  const t = buildStage('1');
+  return {
+    phase:'play',
+    score:0,
+    // driving
+    speed:0, pos:0, playerX:0, gear:'L', steerAng:0,
+    // clock
+    timeLeft:START_TIME, timeMs:0,
+    // stage / route
+    stageNum:1, track:t, route:[t.name], routeIds:['1'], goalLetter:null, goalMsg:'',
+    passes:0,
+    // crash
+    crash:0, crashType:null, crashSpin:0, offRoad:false, onExtend:0,
+    // input (set by wrapper / policy)
+    inSteer:0, inAccel:false, inBrake:false, inGearToggle:false, _gearLatch:false,
+    // fx flags for the frame
+    _ev:null
+  };
+}
+
+/* ===================== STEP ============================================== */
+function stepGame(s, dtMs){
+  const ev = {}; s._ev = ev;
+  if(s.phase!=='play'){ return ev; }
+  const dt = dtMs/1000;
+
+  // ---- clock ALWAYS runs while playing (even mid-crash) ----
+  s.timeLeft -= dt;
+  s.timeMs   += dtMs;
+  if(s.onExtend>0) s.onExtend -= dtMs;
+  if(s.timeLeft <= 0){ s.timeLeft=0; s.phase='dead'; ev.over=true; return ev; }
+
+  // ---- gear toggle (edge) ----
+  if(s.inGearToggle && !s._gearLatch){ s.gear = (s.gear==='L'?'H':'L'); ev.gear=true; }
+  s._gearLatch = s.inGearToggle;
+
+  const track = s.track;
+  const playerSeg = findSeg(track, s.pos + CAM_H*CAM_DEPTH);
+  const segCurve = playerSeg.curve;
+
+  // ---- crash state: control frozen, speed bleeds, clock still ticks ----
+  if(s.crash>0){
+    s.crash -= dtMs;
+    s.speed -= (s.crashType==='bin'?BRAKE*1.4:BRAKE*0.9)*dt;
+    if(s.speed<0) s.speed=0;
+    s.crashSpin += dt* (s.crashType==='bin'? 9 : 6);
+    if(s.crash<=0){
+      // place back on nearest asphalt, forced Low, stopped-ish
+      s.crash=0; s.crashType=null; s.crashSpin=0;
+      s.playerX = clamp(s.playerX, -0.9, 0.9);
+      s.gear='L';
+    }
+    _advance(s, track, dt);           // still coasts forward
+    _updateTraffic(s, track, dt, ev); // traffic keeps moving; no new pass credit while wrecked
+    return ev;
+  }
+
+  // ---- speed / gears ----
+  const off = Math.abs(s.playerX) > 1;
+  s.offRoad = off;
+  let a;
+  if(s.inBrake){ a = -BRAKE; }
+  else if(s.inAccel){
+    if(s.gear==='L'){ a = s.speed < MAX_L ? ACC_L : -ENG_BRK*1.5; }
+    else { const tt = clamp(s.speed/MAXSPD,0,1); a = (s.speed>=MAXSPD)?0:(ACC_HMIN + (ACC_HMAX-ACC_HMIN)*Math.min(1,tt*1.2)); }
+  } else { a = -ENG_BRK; }
+  s.speed += a*dt;
+  if(s.speed<0) s.speed=0;
+
+  // gear ceilings
+  const ceil = s.gear==='L'? MAX_L : MAXSPD;
+  if(!s.inBrake && s.speed>ceil && s.inAccel) s.speed=ceil;
+
+  // off-road: cap + drag + rumble
+  if(off){
+    if(s.speed>OFF_MAX){ s.speed -= OFF_DRAG*dt; if(s.speed<OFF_MAX) s.speed=OFF_MAX; }
+    else { s.speed -= (OFF_DRAG*0.4)*dt; if(s.speed<0) s.speed=0; }
+    ev.rumble = true;
+  }
+
+  // ---- steering (analog, ramped) ----
+  const spdPct = s.speed/MAXSPD;
+  s.steerAng += (s.inSteer - s.steerAng) * Math.min(1, dt/0.12);
+  s.playerX += s.steerAng * 2.4 * dt * (0.35 + spdPct*0.65);
+  // centrifugal pull outward on curves, scaled by speed
+  s.playerX -= segCurve * spdPct * spdPct * CENTRIFUGAL * dt;
+  s.playerX = clamp(s.playerX, -2.2, 2.2);
+
+  // ---- advance along track ----
+  const finished = _advance(s, track, dt);
+
+  // ---- traffic + collisions + passes ----
+  _updateTraffic(s, track, dt, ev);
+
+  // ---- scoring on asphalt (not off-road, not crashing) ----
+  if(!off){
+    const kmh = s.speed/TO_KMH;
+    let rate = kmh<80?6 : kmh<160?16 : kmh<240?34 : 60; // points/sec by speed band
+    s.score += Math.round(rate*dt);
+  }
+
+  // ---- stage end: checkpoint / fork / goal ----
+  if(finished){
+    if(track.isGoal){
+      s.goalLetter = track.letter; s.goalMsg = track.goalMsg;
+      s.score += Math.round(s.timeLeft) * 100000; // goal time bonus (web scale)
+      s.phase='won'; ev.win=true; return ev;
+    }
+    // checkpoint extend
+    const add = EXTEND[s.stageNum] || 40;
+    s.timeLeft += add; s.onExtend = 1400; ev.checkpoint = add;
+    // fork: X sign picks side (snap centre to nearest, default Left)
+    const goRight = s.playerX > 0.12;
+    const nextId = goRight ? track.R : track.L;
+    const nt = buildStage(nextId);
+    s.stageNum++;
+    s.track = nt; s.pos = 0; s.playerX = clamp(s.playerX*0.4,-0.6,0.6); s.speed *= 0.9;
+    s.route.push(nt.name); s.routeIds.push(nextId);
+    ev.stage = nt.name;
+  }
+  return ev;
+}
+
+// advance position; returns true if we crossed the finish line this frame.
+function _advance(s, track, dt){
+  s.pos += s.speed*dt;
+  if(s.pos >= track.trackLen){ s.pos = track.trackLen - 1; return true; }
+  return false;
+}
+
+// traffic update + collision + pass scoring. dtMs used for crash windows.
+function _updateTraffic(s, track, dt, ev){
+  const playerZ = s.pos + CAM_H*CAM_DEPTH;
+  for(let i=0;i<track.cars.length;i++){
+    const c = track.cars[i];
+    const prevZ = c.z;
+    c.z += c.speed*dt;
+    if(c.z > track.trackLen) c.z -= track.trackLen; // wrap far cars (kept sparse)
+
+    // lazy lane drift
+    if(c._drift===undefined){ c._drift=0; }
+    // collision test: only when player overlaps car in z this frame and not wrecked
+    const dz = c.z - playerZ;
+    if(s.crash<=0 && Math.abs(dz) < SEG_LEN*1.2){
+      const dx = Math.abs(s.playerX - c.off);
+      if(dx < 0.42){
+        // hit! class by speed / relative closing
+        const kmh = s.speed/TO_KMH;
+        if(kmh > 180){ s.crash = 2400; s.crashType='bin'; s.speed = 0; s.gear='L'; ev.crash='bin'; }
+        else { s.crash = 1200; s.crashType='shunt'; s.speed *= 0.15; ev.crash='shunt'; }
+        continue;
+      }
+    }
+    // pass credit: player z passes the car's z going forward, on asphalt, not wrecked
+    if(!c.passed && s.crash<=0 && !s.offRoad && prevZ < playerZ && c.z <= playerZ + 1 && (playerZ - c.z) < SEG_LEN*4){
+      // only count once we are clearly ahead
+    }
+    // simpler robust pass detection: player segment index passes car segment index
+  }
+  // robust pass scoring pass (separate loop keyed on segment index crossing)
+  const pSeg = Math.floor(playerZ/SEG_LEN);
+  for(let i=0;i<track.cars.length;i++){
+    const c = track.cars[i];
+    const cSeg = Math.floor(c.z/SEG_LEN);
+    if(!c.passed && s.crash<=0 && !s.offRoad && pSeg > cSeg && (pSeg - cSeg) < 6){
+      c.passed=true; s.passes++; s.score += 2000; ev.pass=true;
+    }
+    if(c.passed && cSeg > pSeg + 8) c.passed=false; // re-arm if it gets ahead again after wrap
+  }
+}
+
+/* ===================== headless export for VERIFY ======================== */
+const HEADLESS = (typeof document === 'undefined');
+if(HEADLESS){ module.exports = { CFG, STAGES, newRun, stepGame, buildStage, TO_KMH, MAXSPD, MAX_L }; }
+
+/* ======================= DOM / RENDER / INPUT (browser) =================== */
+if(!HEADLESS){
+(function(){
+  const cv=document.getElementById('game'); cv.width=W; cv.height=H;
+  const ctx=cv.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let s=newRun();
+
+  // hero sprite
+  const hero=new Image(); let heroOK=false; hero.onload=()=>heroOK=true; hero.src='assets/hero/bot-106.png';
+
+  // ---- fit canvas (letterbox 16:9) ----
+  function fitCanvas(){ const box=cv.parentElement.getBoundingClientRect();
+    const ar=W/H; let w=box.width, h=w/ar; if(h>box.height){ h=box.height; w=h*ar; }
+    cv.style.width=Math.max(80,Math.floor(w))+'px'; cv.style.height=Math.max(45,Math.floor(h))+'px'; }
+  addEventListener('resize',fitCanvas); fitCanvas(); setTimeout(fitCanvas,120);
+
+  /* ================= AUDIO: 3 radio ostinatos + sfx ===================== */
+  let ac=null; function AC(){ if(!ac){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(ac&&ac.state==='suspended') ac.resume(); return ac; }
+  let muted=false;
+  function sfx(type){ if(muted||reduce) return; const a=AC(); if(!a) return;
+    const o=a.createOscillator(), g=a.createGain(); o.connect(g); g.connect(a.destination);
+    let f=440,d=0.12,ty='square';
+    if(type==='gear'){ f=520; d=0.08; }
+    else if(type==='pass'){ f=880; d=0.1; }
+    else if(type==='check'){ f=660; d=0.25; ty='triangle'; }
+    else if(type==='shunt'){ f=150; d=0.22; ty='sawtooth'; }
+    else if(type==='bin'){ f=90; d=0.5; ty='sawtooth'; }
+    else if(type==='beep'){ f=1040; d=0.07; }
+    else if(type==='ready'){ f=700; d=0.15; ty='triangle'; }
+    else if(type==='go'){ f=1200; d=0.3; ty='triangle'; }
+    o.type=ty; o.frequency.value=f; g.gain.value=0.05;
+    g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+d); o.start(); o.stop(a.currentTime+d+0.02); }
+
+  // radio: a 16-step loop of bass + lead + hat, three flavours
+  const RADIO={
+    names:['BEAD BREEZE','BAY SPLASH','TICKER NIGHT'],
+    themes:[
+      { bpm:112, root:130.81, scale:[0,4,7,12,7,4,0,4], bass:[0,0,7,0,5,5,7,0], type:'triangle', hat:0.5 }, // major pulse
+      { bpm:126, root:146.83, scale:[0,4,7,9,12,9,7,4], bass:[0,7,0,7,5,7,0,7], type:'square',   hat:0.9 }, // brighter, hats
+      { bpm:132, root:110.00, scale:[0,3,7,10,7,3,0,-2],bass:[0,0,3,0,-2,-2,0,3],type:'sawtooth', hat:0.7 }  // minor driving
+    ]
+  };
+  let radioSel=0, radioTimer=null, radioStep=0;
+  function note(a,freq,dur,type,vol){ const o=a.createOscillator(),g=a.createGain(); o.connect(g);g.connect(a.destination);
+    o.type=type; o.frequency.value=freq; g.gain.value=vol; g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+dur); o.start(); o.stop(a.currentTime+dur+0.02); }
+  function hat(a,vol){ const b=a.createBuffer(1,256,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<256;i++)d[i]=(Math.random()*2-1)*0.5;
+    const src=a.createBufferSource(); src.buffer=b; const g=a.createGain(); g.gain.value=vol*0.06; const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=6000;
+    src.connect(f); f.connect(g); g.connect(a.destination); src.start(); }
+  function stopRadio(){ if(radioTimer){ clearInterval(radioTimer); radioTimer=null; } }
+  function startRadio(){ stopRadio(); if(muted||reduce) return; const th=RADIO.themes[radioSel]; const spb=60000/th.bpm/2; radioStep=0;
+    radioTimer=setInterval(()=>{ const a=AC(); if(!a||muted){ return; } const i=radioStep%8;
+      const semi=th.scale[i]; note(a, th.root*Math.pow(2,semi/12)*2, spb/1000*0.9, th.type, 0.035);
+      const bs=th.bass[i]; note(a, th.root*Math.pow(2,bs/12)/2, spb/1000*0.9, 'sine', 0.06);
+      if((radioStep%2)===0) hat(a, th.hat);
+      radioStep++; }, spb); }
+
+  /* ================= UI / FLOW STATE ==================================== */
+  let uiPhase='run';          // idle | radio | ready | run | over
+  let readyT=0;               // ready countdown ms
+  let flashCheck=0, flashText='', shakeT=0;
+  let paidActive=false;
+
+  // ---- overlays ----
+  const rulesO=document.getElementById('rulesOverlay'), overO=document.getElementById('overOverlay'),
+        overCard=document.getElementById('overCard'), infoBtn=document.getElementById('infoBtn');
+  function openRules(){ rulesO.classList.add('show'); const b=document.getElementById('rulesClose'); if(b)b.focus(); }
+  function closeRules(){ rulesO.classList.remove('show'); if(infoBtn)infoBtn.focus(); }
+  infoBtn.onclick=openRules; document.getElementById('rulesClose').onclick=closeRules;
+  rulesO.addEventListener('click',e=>{ if(e.target===rulesO) closeRules(); });
+
+  // ---- mute button ----
+  const muteBtn=document.getElementById('muteBtn');
+  function syncMute(){ if(muteBtn) muteBtn.textContent = muted?'🔇':'🔊'; }
+  if(muteBtn) muteBtn.onclick=()=>{ muted=!muted; syncMute(); if(muted) stopRadio(); else if(uiPhase==='run') startRadio(); };
+  syncMute();
+
+  // ---- HUD (DOM secondary; full racing HUD is on-canvas) ----
+  const elScore=document.getElementById('score'), elTime=document.getElementById('stat1'), elSpd=document.getElementById('lives');
+  function pad(n,w){ return String(Math.max(0,Math.floor(n))).padStart(w,'0'); }
+  function syncHUD(){ elScore.textContent=pad(s.score,8); elTime.textContent=Math.ceil(Math.max(0,s.timeLeft));
+    if(s.timeLeft<=9 && uiPhase==='run'){ elTime.classList.add('warn'); } else elTime.classList.remove('warn');
+    elSpd.textContent = Math.round(s.speed/TO_KMH)+' · '+s.gear; }
+
+  /* ================= RENDER ============================================= */
+  function lerp(a,b,p){ return a+(b-a)*p; }
+  const proj = new Array(STAGES ? 0 : 0); // recycled per frame
+  function project(p, camX, camY, camZ){
+    p.cz=(p.wz)-camZ; if(p.cz<0.1) p.cz=0.1;
+    const sc=CAM_DEPTH/p.cz;
+    p.scale=sc;
+    p.sx=Math.round(W/2 + sc*(0-camX)*W/2);
+    p.sy=Math.round(H/2 - sc*((p.wy)-camY)*H/2);
+    p.sw=Math.round(sc*ROAD_W*W/2);
+  }
+  function poly(x1,y1,x2,y2,x3,y3,x4,y4,c){ ctx.fillStyle=c; ctx.beginPath(); ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.lineTo(x4,y4);ctx.closePath();ctx.fill(); }
+
+  function drawBackground(pal, curveShift, hillY){
+    // sky gradient
+    const g=ctx.createLinearGradient(0,0,0,H*0.6); g.addColorStop(0,pal.sky); g.addColorStop(1,shade(pal.sky,18));
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H*0.62);
+    // sun/haze glow (cheap texture layer)
+    ctx.globalAlpha=0.25; ctx.fillStyle='#fff8e0'; ctx.beginPath(); ctx.arc(W*0.7 - curveShift*0.04, H*0.22, 40,0,7); ctx.fill(); ctx.globalAlpha=1;
+    // parallax hills
+    ctx.fillStyle=pal.hill; const hb=H*0.62; ctx.beginPath(); ctx.moveTo(0,hb);
+    const off=-curveShift*0.06; for(let i=0;i<=8;i++){ const x=i/8*W; const y=hb - (28+18*Math.sin(i*1.7+off*0.02)) - hillY*0.02; ctx.lineTo(x,y); } ctx.lineTo(W,hb); ctx.closePath(); ctx.fill();
+    // base grass fill below horizon
+    ctx.fillStyle=pal.grass2; ctx.fillRect(0,hb,W,H-hb);
+  }
+  function shade(hex,d){ // lighten hex by d (0..255)
+    const n=parseInt(hex.slice(1),16); let r=(n>>16)+d,g=((n>>8)&255)+d,b=(n&255)+d;
+    r=Math.min(255,r);g=Math.min(255,g);b=Math.min(255,b); return 'rgb('+r+','+g+','+b+')'; }
+
+  const P1={},P2={}; // reused projection points
+  let SEGPROJ=[];     // per-drawn-segment record for sprite placement
+  function renderRoad(){
+    const track=s.track, segs=track.segs, N=segs.length;
+    const baseIndex=Math.floor(s.pos/SEG_LEN);
+    const basePercent=(s.pos%SEG_LEN)/SEG_LEN;
+    const pIdx=Math.min(N-1,Math.floor((s.pos+CAM_H*CAM_DEPTH)/SEG_LEN));
+    const pSeg=segs[pIdx];
+    const playerYw=lerp(pSeg.p1y,pSeg.p2y,((s.pos+CAM_H*CAM_DEPTH)%SEG_LEN)/SEG_LEN);
+    const camX=s.playerX*ROAD_W, camY=CAM_H+playerYw;
+    // background
+    let curveShift=0; { let x=0,dx=-(segs[Math.min(N-1,baseIndex)].curve*basePercent); for(let n=0;n<20 && baseIndex+n<N;n++){ x+=dx; dx+=segs[baseIndex+n].curve; } curveShift=x; }
+    drawBackground(track.pal, curveShift, playerYw);
+
+    let maxy=H, x=0, dx=-(segs[Math.min(N-1,baseIndex)].curve*basePercent);
+    SEGPROJ.length=0;
+    for(let n=0;n<DRAW_DIST;n++){
+      const idx=baseIndex+n; if(idx>=N) break;
+      const seg=segs[idx];
+      P1.wz=idx*SEG_LEN; P1.wy=seg.p1y; project(P1, camX - x, camY, s.pos);
+      P2.wz=(idx+1)*SEG_LEN; P2.wy=seg.p2y; project(P2, camX - x - dx, camY, s.pos);
+      const x1=P1.sx,y1=P1.sy,w1=P1.sw,x2=P2.sx,y2=P2.sy,w2=P2.sw,sc1=P1.scale;
+      x+=dx; dx+=seg.curve;
+      // record for sprites (even if clipped, so cars behind crest still roughly placed)
+      SEGPROJ[idx]={x:x2,y:y2,w:w2,scale:P2.scale};
+      if(P1.cz<=CAM_DEPTH || y2>=y1 || y1>maxy){ continue; }
+      const dark=(Math.floor(idx/RUMBLE)%2)===0;
+      const pal=track.pal;
+      const grass=dark?pal.grass1:pal.grass2;
+      const road=dark?pal.road1:pal.road2;
+      const rum=dark?pal.rum1:pal.rum2;
+      // grass band
+      ctx.fillStyle=grass; ctx.fillRect(0,y2,W,y1-y2);
+      // rumble (edges)
+      const rw1=w1*0.18, rw2=w2*0.18;
+      poly(x1-w1-rw1,y1, x1-w1,y1, x2-w2,y2, x2-w2-rw2,y2, rum);
+      poly(x1+w1+rw1,y1, x1+w1,y1, x2+w2,y2, x2+w2+rw2,y2, rum);
+      // road
+      poly(x1-w1,y1, x1+w1,y1, x2+w2,y2, x2-w2,y2, road);
+      // lane markers on light segments
+      if(dark){ const ll=w1*0.04, ll2=w2*0.04;
+        for(let L=-1;L<=1;L+=2){ const lx1=x1+L*w1*0.34, lx2=x2+L*w2*0.34; poly(lx1-ll,y1,lx1+ll,y1,lx2+ll2,y2,lx2-ll2,y2, pal.lane); } }
+      // checkpoint / finish line
+      if(seg.checkpoint){ poly(x1-w1,y1,x1+w1,y1,x2+w2,y2,x2-w2,y2, '#fff');
+        ctx.fillStyle='#111'; const sq=Math.max(2,w1*0.12); for(let cxk=-1;cxk<=1;cxk++){ ctx.fillRect(x1+cxk*w1*0.5-sq/2,y1-sq,sq,sq); } }
+      maxy=y1<maxy?y1:maxy;
+    }
+
+    // ---- roadside sprites + traffic, far -> near ----
+    const drawList=[];
+    for(let n=DRAW_DIST-1;n>=0;n--){ const idx=baseIndex+n; if(idx>=N||idx<0)continue; const pr=SEGPROJ[idx]; if(!pr)continue;
+      const seg=segs[idx];
+      for(const sp of seg.sprites){ drawList.push({z:idx, pr, kind:'scn', sp}); }
+    }
+    // cars: map to nearest drawn segment
+    for(const c of track.cars){ const idx=Math.floor(c.z/SEG_LEN); if(idx<baseIndex||idx>=baseIndex+DRAW_DIST||idx>=N)continue; const pr=SEGPROJ[idx]; if(!pr)continue; drawList.push({z:idx, pr, kind:'car', c}); }
+    drawList.sort((a,b)=>b.z-a.z);
+    for(const d of drawList){ if(d.kind==='scn') drawScenery(d.pr, d.sp, s.track.spr); else drawCar(d.pr, d.c); }
+  }
+
+  function spriteX(pr, off){ return pr.x + pr.scale*(off*ROAD_W)*W/2; }
+
+  function drawScenery(pr, sp, type){
+    const gx=spriteX(pr, sp.off); const gy=pr.y; const h=pr.scale*3000; const w=h*0.5;
+    if(h<2) return;
+    drawProp(type, gx, gy, w, h, sp.solid);
+  }
+  function drawProp(type,x,yBase,w,h,solid){
+    const OUT='#2a1e26'; ctx.save();
+    function box(cx,cy,ww,hh,col){ ctx.fillStyle=col; ctx.fillRect(cx-ww/2,cy-hh,ww,hh); ctx.strokeStyle=OUT; ctx.lineWidth=Math.max(1,w*0.04); ctx.strokeRect(cx-ww/2,cy-hh,ww,hh); }
+    if(type==='palm'){ ctx.strokeStyle='#6b4a2a'; ctx.lineWidth=Math.max(1,w*0.14); ctx.beginPath(); ctx.moveTo(x,yBase); ctx.lineTo(x-w*0.06,yBase-h*0.8); ctx.stroke();
+      ctx.fillStyle='#3f9f5a'; for(let a=0;a<5;a++){ const ang=-Math.PI/2 + (a-2)*0.5; ctx.beginPath(); ctx.moveTo(x-w*0.06,yBase-h*0.78); ctx.lineTo(x-w*0.06+Math.cos(ang)*w*0.9, yBase-h*0.78+Math.sin(ang)*w*0.9); ctx.lineWidth=Math.max(1,w*0.12); ctx.strokeStyle='#3f9f5a'; ctx.stroke(); } }
+    else if(type==='drum'){ box(x,yBase,w*0.7,h*0.5, solid?'#f2a03d':'#c9772a'); ctx.fillStyle='#7a3a12'; ctx.fillRect(x-w*0.35,yBase-h*0.35,w*0.7,Math.max(1,h*0.05)); ctx.fillRect(x-w*0.35,yBase-h*0.18,w*0.7,Math.max(1,h*0.05)); }
+    else if(type==='pine'){ ctx.fillStyle='#2f7d4a'; ctx.strokeStyle=OUT; ctx.lineWidth=Math.max(1,w*0.05); for(let t=0;t<3;t++){ const ty=yBase-h*0.3-t*h*0.22; ctx.beginPath(); ctx.moveTo(x,ty-h*0.28); ctx.lineTo(x-w*0.5,ty); ctx.lineTo(x+w*0.5,ty); ctx.closePath(); ctx.fill(); ctx.stroke(); } ctx.fillStyle='#6b4a2a'; ctx.fillRect(x-w*0.08,yBase-h*0.12,w*0.16,h*0.12); }
+    else if(type==='bldg'){ box(x,yBase,w,h*0.95, solid?'#7a6478':'#63545e'); ctx.fillStyle='#e8c14a'; for(let ry=0;ry<3;ry++)for(let rx=0;rx<2;rx++){ ctx.fillRect(x-w*0.28+rx*w*0.34, yBase-h*0.85+ry*h*0.26, w*0.16,h*0.12); } }
+    else if(type==='arch'){ box(x,yBase,w*0.25,h*0.9,'#8a7a82'); ctx.strokeStyle='#8a7a82'; ctx.lineWidth=Math.max(1,w*0.12); ctx.beginPath(); ctx.arc(x,yBase-h*0.85,w*0.5,Math.PI,0); ctx.stroke(); }
+    else if(type==='wall'||type==='wallsea'){ box(x,yBase,w*0.5,h*0.7, type==='wallsea'?'#3f8fa0':'#9c4f2e'); }
+    else if(type==='pole'){ ctx.fillStyle='#9aa0a6'; ctx.fillRect(x-w*0.05,yBase-h*0.9,w*0.1,h*0.9); ctx.fillStyle=solid?'#c0392b':'#f2a03d'; ctx.fillRect(x-w*0.18,yBase-h*0.9,w*0.36,h*0.14); }
+    else if(type==='scrap'){ box(x,yBase,w*0.8,h*0.4,'#6a5a48'); box(x-w*0.1,yBase-h*0.35,w*0.5,h*0.3,'#7a6a58'); }
+    else if(type==='rock'){ ctx.fillStyle=solid?'#8a8f96':'#6f757b'; ctx.strokeStyle=OUT; ctx.lineWidth=Math.max(1,w*0.05); ctx.beginPath(); ctx.moveTo(x-w*0.4,yBase); ctx.lineTo(x-w*0.25,yBase-h*0.5); ctx.lineTo(x+w*0.1,yBase-h*0.55); ctx.lineTo(x+w*0.4,yBase); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    else if(type==='vine'){ ctx.strokeStyle='#3f9f5a'; ctx.lineWidth=Math.max(1,w*0.1); ctx.beginPath(); ctx.moveTo(x,yBase); ctx.lineTo(x,yBase-h*0.5); ctx.stroke(); ctx.fillStyle='#7fbf5a'; ctx.beginPath(); ctx.arc(x,yBase-h*0.5,w*0.28,0,7); ctx.fill(); }
+    else { box(x,yBase,w*0.5,h*0.6,'#6b4a2a'); }
+    ctx.restore();
+  }
+
+  const CARCOL={ cam:{b:'#3a6ff7',t:'#2a4fb7'}, sip:{b:'#f2a03d',t:'#b8701f'}, ticker:{b:'#5f4c57',t:'#3e323a'} };
+  function drawCar(pr, c){
+    const gx=spriteX(pr, c.off), gy=pr.y; const scale=pr.scale;
+    let w=scale*2600; if(c.type==='ticker') w*=1.35; let h=w*0.7; if(w<3)return;
+    const col=CARCOL[c.type]||CARCOL.cam; const OUT='#160f14';
+    ctx.save();
+    // shadow
+    ctx.globalAlpha=0.28; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(gx,gy,w*0.55,h*0.16,0,0,7); ctx.fill(); ctx.globalAlpha=1;
+    // body
+    ctx.fillStyle=col.b; ctx.strokeStyle=OUT; ctx.lineWidth=Math.max(1,w*0.03);
+    ctx.fillRect(gx-w*0.5, gy-h, w, h); ctx.strokeRect(gx-w*0.5, gy-h, w, h);
+    // roof/cabin (darker) + screen-face window
+    ctx.fillStyle=col.t; ctx.fillRect(gx-w*0.38, gy-h*1.05, w*0.76, h*0.5);
+    ctx.fillStyle='#bfe9ff'; ctx.fillRect(gx-w*0.3, gy-h*0.98, w*0.6, h*0.32);
+    ctx.fillStyle=OUT; const ew=Math.max(1,w*0.09); ctx.fillRect(gx-w*0.16,gy-h*0.9,ew,ew); ctx.fillRect(gx+w*0.07,gy-h*0.9,ew,ew);
+    // wheels + tail lights
+    ctx.fillStyle='#111'; ctx.fillRect(gx-w*0.52,gy-h*0.28,w*0.12,h*0.3); ctx.fillRect(gx+w*0.4,gy-h*0.28,w*0.12,h*0.3);
+    ctx.fillStyle='#ff5a4a'; ctx.fillRect(gx-w*0.44,gy-h*0.34,w*0.14,Math.max(1,h*0.12)); ctx.fillRect(gx+w*0.3,gy-h*0.34,w*0.14,Math.max(1,h*0.12));
+    ctx.restore();
+  }
+
+  function drawHero(){
+    const cxp=W/2, baseY=H-30;
+    const kmh=s.speed/TO_KMH; const spdPct=s.speed/MAXSPD;
+    // tilt by steer; bounce by speed; shake on rumble/crash
+    let tilt=clamp(s.steerAng,-1,1);
+    let bob=Math.sin(s.timeMs/60)*spdPct*1.5 + (s.offRoad?(Math.random()-0.5)*3:0);
+    let sway = -s.steerAng*10;
+    ctx.save();
+    let cy=baseY+bob;
+    if(s.crash>0){ // spin / tumble
+      ctx.translate(cxp+sway, cy-18); ctx.rotate(s.crashSpin); ctx.translate(-(cxp+sway),-(cy-18));
+    }
+    const bw=88, bh=54;
+    const x=cxp+sway-bw/2;
+    // shadow
+    ctx.globalAlpha=0.3; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(cxp+sway,baseY+6,bw*0.55,10,0,0,7); ctx.fill(); ctx.globalAlpha=1;
+    // car body (behind view) — chassis
+    const bodyY=cy-bh+8;
+    ctx.fillStyle='#c0392b'; ctx.strokeStyle='#160f14'; ctx.lineWidth=2;
+    // rear wing
+    ctx.fillStyle='#3e323a'; ctx.fillRect(x-6+tilt*4, bodyY-6, bw+12, 7); ctx.strokeRect(x-6+tilt*4, bodyY-6, bw+12,7);
+    // body trapezoid
+    ctx.fillStyle='#d0453a'; ctx.beginPath(); ctx.moveTo(x-2+tilt*3,cy); ctx.lineTo(x+bw+2+tilt*3,cy); ctx.lineTo(x+bw-8+tilt*6,bodyY); ctx.lineTo(x+8+tilt*6,bodyY); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // wheels
+    ctx.fillStyle='#111'; ctx.fillRect(x-6+tilt*2,cy-14,14,18); ctx.fillRect(x+bw-8+tilt*2,cy-14,14,18);
+    ctx.fillStyle='#2a2a2a'; ctx.fillRect(x-4+tilt*2,cy-12,10,14); ctx.fillRect(x+bw-6+tilt*2,cy-12,10,14);
+    // cockpit: Bot 106 seen from behind (screen-face on the tail)
+    const hy=bodyY-30;
+    if(heroOK){ const hw=42, hh=42; ctx.drawImage(hero, cxp+sway-hw/2+tilt*5, hy, hw, hh); }
+    else { ctx.fillStyle='#5f4c57'; ctx.fillRect(cxp+sway-18+tilt*5,hy,36,34); ctx.fillStyle='#bfe9ff'; ctx.fillRect(cxp+sway-12+tilt*5,hy+6,24,16); ctx.fillStyle='#160f14'; ctx.fillRect(cxp+sway-7+tilt*5,hy+11,5,5); ctx.fillRect(cxp+sway+3+tilt*5,hy+11,5,5); }
+    // Sip passenger (cosmetic) on the right seat
+    ctx.fillStyle='#f2a03d'; ctx.beginPath(); ctx.arc(cxp+sway+22+tilt*5, hy+14, 8,0,7); ctx.fill(); ctx.strokeStyle='#160f14'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle='#bfe9ff'; ctx.fillRect(cxp+sway+18+tilt*5,hy+10,8,6);
+    ctx.restore();
+  }
+
+  /* ---- route tree map (the collectable) ---- */
+  const TREECOLS=[['1'],['2A','2B'],['3A','3B','3C'],['4A','4B','4C','4D'],['5A','5B','5C','5D','5E']];
+  function nodePos(id, x0,y0,dx,dy){ for(let c=0;c<TREECOLS.length;c++){ const col=TREECOLS[c]; const r=col.indexOf(id); if(r>=0){ const cx=x0+c*dx; const cy=y0+(r-(col.length-1)/2)*dy; return {x:cx,y:cy}; } } return null; }
+  function drawTree(x0,y0,dx,dy,small){ const rSet=new Set(s.routeIds);
+    // edges
+    ctx.strokeStyle=small?'rgba(255,255,255,.35)':'rgba(62,50,58,.35)'; ctx.lineWidth=small?1:2;
+    for(const id in STAGES){ const st=STAGES[id]; const a=nodePos(id,x0,y0,dx,dy); if(!a)continue;
+      [st.L,st.R].forEach(ch=>{ if(!ch)return; const b=nodePos(ch,x0,y0,dx,dy); if(!b)return;
+        const lit=rSet.has(id)&&rSet.has(ch); ctx.strokeStyle=lit?'#f2a03d':(small?'rgba(255,255,255,.3)':'rgba(62,50,58,.3)'); ctx.lineWidth=lit?(small?2:3):(small?1:2);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }); }
+    // nodes
+    for(const id in STAGES){ const p=nodePos(id,x0,y0,dx,dy); if(!p)continue; const lit=rSet.has(id); const cur=s.routeIds[s.routeIds.length-1]===id;
+      ctx.beginPath(); ctx.arc(p.x,p.y, small?2.6:4, 0,7); ctx.fillStyle=lit?(cur?'#3a6ff7':'#f2a03d'):(small?'rgba(255,255,255,.45)':'rgba(62,50,58,.3)'); ctx.fill();
+      if(cur){ ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke(); } }
+  }
+
+  /* ---- on-canvas racing HUD ---- */
+  function text(str,x,y,size,col,align){ ctx.font=size+'px "Jersey 15", system-ui'; ctx.fillStyle=col; ctx.textAlign=align||'left'; ctx.fillText(str,x,y); ctx.textAlign='left'; }
+  function drawHUD(){
+    const kmh=Math.round(s.speed/TO_KMH);
+    // TIME top-centre
+    const t=Math.ceil(Math.max(0,s.timeLeft));
+    const warn=s.timeLeft<=9;
+    ctx.textAlign='center';
+    text('TIME', W/2, 14, 9, 'rgba(255,255,255,.8)','center');
+    ctx.font='26px "Jersey 15", system-ui'; ctx.fillStyle=warn?'#ff5a4a':'#fff';
+    if(!warn || Math.floor(s.timeMs/250)%2===0) ctx.fillText(String(t), W/2, 38);
+    // SCORE top-right
+    text('SCORE '+pad(s.score,8), W-6, 14, 12, '#fff','right');
+    // route mini-tree top-left
+    drawTree(20,26,12,8,true);
+    // SPEED bottom-left + GEAR + tach
+    text(kmh+' km/h', 6, H-8, 14, '#fff','left');
+    // gear
+    ctx.fillStyle=s.gear==='H'?'#3a6ff7':'#f2a03d'; ctx.fillRect(90,H-22,20,16); text(s.gear, 100, H-9, 14, '#fff','center');
+    // tach bar
+    const redl=s.gear==='L'?MAX_L:MAXSPD; const rpm=clamp(s.speed/redl,0,1);
+    const near=s.gear==='L' && s.speed>MAX_L*0.9;
+    ctx.fillStyle='rgba(0,0,0,.4)'; ctx.fillRect(118,H-20,90,12);
+    ctx.fillStyle=(near && Math.floor(s.timeMs/120)%2===0)?'#ff5a4a':'#7fe0a0'; ctx.fillRect(119,H-19,88*rpm,10);
+    // STAGE / GOAL label bottom-right
+    const lbl = s.track.isGoal ? ('GOAL '+s.track.letter) : ('STAGE '+s.stageNum);
+    text(lbl, W-6, H-8, 14, '#fff','right');
+    // check-point flash
+    if(flashCheck>0){ ctx.textAlign='center'; ctx.font='22px "Jersey 15", system-ui'; ctx.fillStyle=Math.floor(s.timeMs/120)%2?'#f2a03d':'#fff';
+      ctx.fillText('CHECK POINT', W/2, H/2-18); ctx.font='18px "Jersey 15", system-ui'; ctx.fillStyle='#fff'; ctx.fillText(flashText, W/2, H/2+6); ctx.textAlign='left'; }
+    // off-road tag
+    if(s.offRoad && uiPhase==='run'){ text('OFF-ROAD', W/2, H-46, 12, '#ffd24a','center'); }
+  }
+
+  function drawRadio(){
+    ctx.fillStyle='#1a1220'; ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';
+    text('RADIO', W/2, 46, 30, '#f2a03d','center');
+    text('pick a theme — GO to start', W/2, 66, 11, 'rgba(255,255,255,.7)','center');
+    for(let i=0;i<3;i++){ const y=100+i*40; const sel=i===radioSel;
+      ctx.fillStyle=sel?'rgba(242,160,61,.9)':'rgba(255,255,255,.12)'; ctx.fillRect(W/2-110,y-20,220,32);
+      text((i+1)+'   '+RADIO.names[i], W/2, y+2, 16, sel?'#3e323a':'#fff','center'); }
+    text(muted?'🔇 muted (M)':'🔊 sound on (M)', W/2, H-22, 12, '#fff','center');
+    ctx.textAlign='left';
+  }
+  function drawReady(){
+    renderRoad(); drawHero(); drawHUD();
+    ctx.fillStyle='rgba(20,14,24,.35)'; ctx.fillRect(0,0,W,H);
+    ctx.textAlign='center';
+    if(readyT>600){ text('GET READY', W/2, H/2, 34, '#fff','center'); }
+    else { text('GO!', W/2, H/2, 44, '#f2a03d','center'); }
+    ctx.textAlign='left';
+  }
+  function drawGame(){ renderRoad(); drawHero(); drawHUD(); }
+  function drawIdle(){ ctx.fillStyle='#20150f'; ctx.fillRect(0,0,W,H); ctx.textAlign='center'; text('BOTRUN', W/2, H/2-6, 34,'#f2a03d','center'); text('paid — press Play', W/2, H/2+20, 14,'#fff','center'); ctx.textAlign='left'; }
+
+  function draw(){
+    if(uiPhase==='radio') drawRadio();
+    else if(uiPhase==='ready') drawReady();
+    else if(uiPhase==='idle') drawIdle();
+    else drawGame();
+  }
+
+  /* ================= INPUT ============================================= */
+  const key={left:false,right:false,accel:false,brake:false};
+  let touchSteer=null, touchAccel=false;
+  function gearToggle(){ s.inGearToggle=true; setTimeout(()=>{ s.inGearToggle=false; },30); }
+
+  // keyboard
+  const KMAP={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'accel',ArrowDown:'brake',a:'left',d:'right',w:'accel',s:'brake',A:'left',D:'right',W:'accel',S:'brake'};
+  addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ closeRules(); return; }
+    if(e.key==='r'||e.key==='R'){ doRestart(); return; }
+    if(e.key==='m'||e.key==='M'){ if(muteBtn)muteBtn.click(); return; }
+    if(uiPhase==='radio'){ if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ radioSel=(radioSel+2)%3; sfx('beep'); } else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ radioSel=(radioSel+1)%3; sfx('beep'); } else if(e.key===' '||e.key==='Enter'){ confirmRadio(); } e.preventDefault(); return; }
+    if(e.key===' '||e.key==='Shift'||e.key==='e'||e.key==='E'){ gearToggle(); e.preventDefault(); return; }
+    const m=KMAP[e.key]; if(m){ key[m]=true; e.preventDefault(); }
+  });
+  addEventListener('keyup',e=>{ const m=KMAP[e.key]; if(m) key[m]=false; });
+
+  // d-pad
+  function bindHold(id,on,off){ const el=document.getElementById(id); if(!el)return;
+    const d=e=>{e.preventDefault();el.classList.add('on');on();}, u=e=>{e.preventDefault();el.classList.remove('on');off();};
+    el.addEventListener('pointerdown',d); el.addEventListener('pointerup',u); el.addEventListener('pointerleave',u); el.addEventListener('pointercancel',u); }
+  bindHold('padL',()=>key.left=true,()=>key.left=false);
+  bindHold('padR',()=>key.right=true,()=>key.right=false);
+  bindHold('padU',()=>key.accel=true,()=>key.accel=false);
+  bindHold('padD',()=>key.brake=true,()=>key.brake=false);
+  (function(){ const b=document.getElementById('padFire'); if(!b)return;
+    b.addEventListener('pointerdown',e=>{e.preventDefault();b.classList.add('on'); if(uiPhase==='radio')confirmRadio(); else gearToggle();});
+    b.addEventListener('pointerup',e=>{e.preventDefault();b.classList.remove('on');}); })();
+
+  // canvas touch: hold = accel, x position = analog steer; tap in radio selects
+  cv.addEventListener('pointerdown',e=>{ const r=cv.getBoundingClientRect(); const gx=(e.clientX-r.left)/r.width; const gy=(e.clientY-r.top)/r.height;
+    if(uiPhase==='radio'){ const idx=Math.floor((gy*H-80)/40); if(idx>=0&&idx<3){ radioSel=idx; confirmRadio(); } return; }
+    touchAccel=true; touchSteer=(gx-0.5)*2; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove',e=>{ if(!touchAccel)return; const r=cv.getBoundingClientRect(); const gx=(e.clientX-r.left)/r.width; touchSteer=clamp((gx-0.5)*2.2,-1,1); });
+  function endTouch(){ touchAccel=false; touchSteer=null; }
+  cv.addEventListener('pointerup',endTouch); cv.addEventListener('pointercancel',endTouch); cv.addEventListener('pointerleave',endTouch);
+
+  function applyInput(){
+    let steer=0;
+    if(touchSteer!==null){ steer=touchSteer; }
+    else { if(key.left)steer-=1; if(key.right)steer+=1; }
+    s.inSteer=clamp(steer,-1,1);
+    s.inAccel = key.accel || touchAccel;
+    s.inBrake = key.brake;
+  }
+
+  /* ================= FLOW ============================================== */
+  function beginRadio(){ uiPhase='radio'; }
+  function confirmRadio(){ if(uiPhase!=='radio')return; sfx('go'); uiPhase='ready'; readyT=1400; startRadio(); }
+  function doRestart(){ overO.classList.remove('show'); document.getElementById('paidOverlay').classList.remove('show');
+    if(paidActive){ window.BOTRUNPaid && BOTRUNPaid.showPaidStart && BOTRUNPaid.showPaidStart(); paidActive=false; s=newRun(); uiPhase='idle'; stopRadio(); return; }
+    s=newRun(); beginRadio(); }
+
+  // route summary string
+  function routeStr(){ return s.route.join(' · '); }
+
+  function showTimeUp(){
+    stopRadio(); uiPhase='over';
+    overCard.className='card';
+    overCard.innerHTML='<h2 id="overTitle">TIME UP</h2><div class="big">SCORE <span id="oScore">'+s.score.toLocaleString()+'</span></div>'+
+      '<p>Reached <b>'+s.route[s.route.length-1]+'</b> · Stage '+s.stageNum+' of 5<br/><span style="font-size:11px;color:var(--muted)">'+routeStr()+'</span></p>'+
+      '<button class="btn" id="retryBtn">Tap to retry</button>';
+    document.getElementById('retryBtn').onclick=doRestart; overO.classList.add('show'); document.getElementById('retryBtn').focus();
+  }
+  function showGoal(){
+    stopRadio(); uiPhase='over'; sfx('go');
+    overCard.className='card win';
+    overCard.innerHTML='<h2 id="overTitle">GOAL '+s.goalLetter+'</h2>'+
+      '<p>BOT 106 · TIME LEFT '+Math.ceil(s.timeLeft)+'<br/><b>"'+s.goalMsg+'"</b></p>'+
+      '<div class="big">SCORE <span id="oScore">'+s.score.toLocaleString()+'</span></div>'+
+      '<p style="font-size:11px;color:var(--muted)">ROUTE  '+routeStr()+'</p>'+
+      '<button class="btn" id="retryBtn">Drive again</button>';
+    document.getElementById('retryBtn').onclick=doRestart; overO.classList.add('show'); document.getElementById('retryBtn').focus();
+  }
+
+  function endRun(){
+    const res={ score:s.score, route:(s.goalLetter?('GOAL '+s.goalLetter):s.route[s.route.length-1]), passes:s.passes, timeMs:s.timeMs };
+    if(window.BOTRUNPaid && BOTRUNPaid.onRunEnd && BOTRUNPaid.onRunEnd(res)){ uiPhase='over'; stopRadio(); return; }
+    if(s.goalLetter) showGoal(); else showTimeUp();
+  }
+
+  // ---- engine contract (Paid layer arms/observes a run) ----
+  window.BOTRUNEngine = {
+    start:function(){ paidActive=(document.body.classList.contains('mode-paid')); s=newRun(); overO.classList.remove('show'); document.getElementById('paidOverlay').classList.remove('show'); beginRadio(); },
+    idle:function(){ s=newRun(); uiPhase='idle'; stopRadio(); },
+    resumeFree:function(){ paidActive=false; s=newRun(); overO.classList.remove('show'); beginRadio(); },
+    state:function(){ return s; }
+  };
+
+  /* ================= MAIN LOOP ========================================= */
+  let last=performance.now(), acc=0; const TICK=1000/60;
+  function frame(now){ let dt=now-last; last=now; if(dt>100)dt=100;
+    if(uiPhase==='ready'){ readyT-=dt; if(readyT<=0){ uiPhase='run'; } }
+    if(uiPhase==='run' && s.phase==='play' && !rulesO.classList.contains('show')){
+      applyInput(); acc+=dt; let guard=0;
+      while(acc>=TICK && s.phase==='play' && guard<5){ acc-=TICK; const ev=stepGame(s,TICK);
+        if(ev.gear) sfx('gear');
+        if(ev.pass) sfx('pass');
+        if(ev.crash==='shunt') sfx('shunt');
+        if(ev.crash==='bin'){ sfx('bin'); }
+        if(ev.checkpoint){ sfx('check'); flashCheck=1400; flashText='EXTEND +'+ev.checkpoint; }
+        if(ev.rumble && Math.floor(s.timeMs/90)%2===0) {}
+        guard++; }
+      if(flashCheck>0) flashCheck-=dt;
+      // sub-9s tick beep
+      if(s.timeLeft<=9 && s.timeLeft>0){ const sec=Math.ceil(s.timeLeft); if(sec!==beepSec){ beepSec=sec; sfx('beep'); } }
+      if(s.phase!=='play' && !ended){ ended=true; endRun(); }
+    } else { acc=0; }
+    if(uiPhase==='run' && s.phase==='play') ended=false;
+    syncHUD(); draw(); requestAnimationFrame(frame);
+  }
+  let ended=false, beepSec=-1;
+  requestAnimationFrame(frame);
+
+  // First load: open How-To intro (skip Phantom redirect returns), then radio.
+  try{ const _p=new URLSearchParams(location.search); if(!_p.get('phantom_action') && _p.get('src')!=='browse'){ openRules(); } }catch(e){}
+  beginRadio();
+})();
+}
+
+</script>
+
+<!-- Shared wallet libs (loaded once; the wallet LOGIC stays dead until Paid is chosen — mirrors live Mr Bot / Rush). -->
+<script src="phantom-deeplink-libs.min.js?v=20260906a"></script>
+<script src="phantom-mobile.js?v=20260906a"></script>
+<script src="solana-web3.iife.min.js?v=20260906a"></script>
+<script>
+  // NOTE: the score-memo SHAPE (buildScoreMemo + the result fields it carries: res.height/res.oil/...) is
+  // per-game — change those to your run stats. Everything else in this layer stays byte-identical.
+/* ============================================================================
+ * Bot Smash — Paid layer. BRUN sink + fun leaderboard.
+ * The wallet MECHANICS below (getProvider, fetchOilBalance, buildTransferIx,
+ * buildMemoIx, confirmSignature, sendPayment, onConnect, resume) are LIFTED
+ * VERBATIM from the live Mr Bot index.html (itself lifted from Bot Merge Rush)
+ * — only CFG values, the BRUN memo tag / pending key / sign marker, and the
+ * score-memo shape change. The UI glue is Bot Smash's (single-run action game).
+ * Bot Smash is real-time and UNREPLAYABLE. The leaderboard is a FUN RANKING +
+ * an OIL SINK. It is NOT verified / provably fair. Records, does not verify.
+ * ==========================================================================*/
+(function(){
+  'use strict';
+  var mode = 'free';
+  function $(id){ return document.getElementById(id); }
+
+  function lockModeToggle(lock){
+    $('modeFree').disabled = !!lock;
+    $('modePaid').disabled = !!lock;
+  }
+
+  var Paid = (function(){
+    var TEST_MODE = true;     // <-- ships TEST for Localnet proof; flip to false ONLY with Founder confirm in this run's output
+    var CFG = TEST_MODE ? {
+      RPC: 'http://127.0.0.1:8899',
+      TOKEN_PROGRAM: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      MEMO_PROGRAM: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+      OIL_MINT: '9B5ZQifZQc3ykhnZhA9m8DFoNY5uaTwqHGNZMah6eK8Y',
+      TREASURY: '8tzZzNiGkE2kYXhUSauNEUyVHiaWBt5pBagg7CHKPNBM',
+      TREASURY_TOKEN_ACCOUNT: '3s1SQ7JZmti4PfhVsb7LCTn9q5ZhRBMaH6v2vsrVZeg6',
+      ENTRY_FEE: 25, POST_FEE: 1, DECIMALS: 2
+    } : {
+      RPC: 'https://finnbots-rpc.mart-kin1000.workers.dev',
+      TOKEN_PROGRAM: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      MEMO_PROGRAM: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+      OIL_MINT: 'HrcfXJcFdMoLfbkN5qCTSFrLsAgJNHitmwKc5AyS7xzf',
+      TREASURY: '75WPN3kwYUT5kdPU7V3Fp3LhnxmPC38bsgBCasRQdXMR',
+      TREASURY_TOKEN_ACCOUNT: '2ZBNMLZFfHCuZm9Lfc3b7ut296tRwGtapuXad7zSm1ED',
+      ENTRY_FEE: 25, POST_FEE: 1, DECIMALS: 2
+    };
+    var MEMO_TAG = 'BRUN';
+    var wallet = { pubkey:null, oil:0 };
+    var inited=false, busy=false, entrySig=null, pendingResult=null;
+    var connectBtn, walletStatus;
+
+    function $(id){ return document.getElementById(id); }
+    // ---- verbatim from Rush/Mr Bot ----
+    function getProvider(){ if(window.phantom&&window.phantom.solana&&window.phantom.solana.isPhantom) return window.phantom.solana; if(window.solana&&window.solana.isPhantom) return window.solana; return null; }
+    function shortAddr(a){ return a.slice(0,4)+'\u2026'+a.slice(-4); }
+    function setStatus(html,cls){ walletStatus.classList.remove('hidden'); walletStatus.className='wallet-status'+(cls?' '+cls:''); walletStatus.innerHTML=html; }
+    function canPlay(){ return !!wallet.pubkey && wallet.oil>=CFG.ENTRY_FEE; }
+    function delay(ms){ return new Promise(function(res){ setTimeout(res,ms); }); }
+
+    // ---- balance (verbatim from Rush/Mr Bot) -------------------------------
+    async function fetchOilBalance(owner){
+      try{ var body=JSON.stringify({ jsonrpc:'2.0', id:'oilbal', method:'getTokenAccountsByOwner', params:[ owner, { mint:CFG.OIL_MINT }, { encoding:'jsonParsed' } ] });
+        var r=await fetch(CFG.RPC,{ method:'POST', headers:{'Content-Type':'application/json'}, body:body }); if(!r.ok) return 0;
+        var j=await r.json(); var accts=j&&j.result&&j.result.value; if(!accts||!accts.length) return 0;
+        var base=0; accts.forEach(function(acc){ try{ base+=Number(acc.account.data.parsed.info.tokenAmount.amount); }catch(e){} });
+        return base/Math.pow(10,CFG.DECIMALS);
+      }catch(e){ return 0; }
+    }
+    async function checkBalance(owner){
+      wallet.oil=await fetchOilBalance(owner);
+      var pfx=TEST_MODE?'\ud83e\uddea TEST MODE \u2014 ':'';
+      if(wallet.oil>=CFG.ENTRY_FEE){ setStatus('Connected as <span class="addr">'+shortAddr(owner)+'</span><br/>'+pfx+'You hold <b>'+wallet.oil.toFixed(2)+'</b> $OIL \u2014 tap Play to enter (25 OIL).', 'ok'); }
+      else { setStatus('Connected as <span class="addr">'+shortAddr(owner)+'</span><br/>'+pfx+'This wallet holds <b>'+wallet.oil.toFixed(2)+'</b> $OIL \u2014 need at least '+CFG.ENTRY_FEE+' to play.', 'warn'); }
+      relabelStart();
+    }
+
+    // ---- payment (one signed SPL transfer + memo — verbatim from Rush/Mr Bot) ----
+    var PENDING_KEY='brun_pending_action';
+    function savePending(a){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(a)); }catch(e){} }
+    function loadPending(){ try{ var v=localStorage.getItem(PENDING_KEY); return v?JSON.parse(v):null; }catch(e){ return null; } }
+    function clearPending(){ try{ localStorage.removeItem(PENDING_KEY); }catch(e){} }
+    function PayError(msg){ this.userMessage=msg; }
+    function u64LE(amount){ var out=new Uint8Array(8); var big=BigInt(Math.round(amount)); for(var i=0;i<8;i++){ out[i]=Number(big&0xffn); big>>=8n; } return out; }
+    function buildTransferIx(src,dst,owner,amt){ var data=new Uint8Array(9); data[0]=3; data.set(u64LE(amt),1);
+      return new solanaWeb3.TransactionInstruction({ programId:new solanaWeb3.PublicKey(CFG.TOKEN_PROGRAM),
+        keys:[{pubkey:src,isSigner:false,isWritable:true},{pubkey:dst,isSigner:false,isWritable:true},{pubkey:owner,isSigner:true,isWritable:false}], data:data }); }
+    function buildMemoIx(owner,text){ return new solanaWeb3.TransactionInstruction({ programId:new solanaWeb3.PublicKey(CFG.MEMO_PROGRAM), keys:[{pubkey:owner,isSigner:true,isWritable:false}], data:new TextEncoder().encode(text) }); }
+    async function confirmSignature(connection,signature,timeoutMs){ var start=Date.now();
+      while(Date.now()-start<timeoutMs){ var res=await connection.getSignatureStatuses([signature]); var st=res&&res.value&&res.value[0];
+        if(st){ if(st.err) throw new PayError('The transaction failed on-chain \u2014 no charge was made. Please try again.'); if(st.confirmationStatus==='confirmed'||st.confirmationStatus==='finalized') return true; } await delay(1500); } return false; }
+
+    async function sendPayment(amountOil, memoText, action){
+      var provider=getProvider();
+      var useMobile=!provider && window.PhantomMobile && PhantomMobile.isMobile() && PhantomMobile.hasSession();
+      if(!provider && !useMobile) throw new PayError('Phantom isn\u2019t reachable here \u2014 open this page in your browser, or tap Connect again on mobile.');
+      var ownerPk=new solanaWeb3.PublicKey(wallet.pubkey);
+      var connection=new solanaWeb3.Connection(CFG.RPC,'confirmed');
+      var tokAccts=await connection.getTokenAccountsByOwner(ownerPk,{ mint:new solanaWeb3.PublicKey(CFG.OIL_MINT) });
+      if(!tokAccts.value.length) throw new PayError('No $OIL account found in this wallet.');
+      var sourcePubkey=tokAccts.value[0].pubkey;
+      var balInfo=await connection.getTokenAccountBalance(sourcePubkey);
+      var needBase=Math.round(amountOil*Math.pow(10,CFG.DECIMALS));
+      if(Number(balInfo.value.amount)<needBase) throw new PayError('Not enough liquid $OIL \u2014 need '+amountOil+'.');
+      var destPubkey=new solanaWeb3.PublicKey(CFG.TREASURY_TOKEN_ACCOUNT);
+      var tx=new solanaWeb3.Transaction();
+      tx.add(buildTransferIx(sourcePubkey,destPubkey,ownerPk,needBase), buildMemoIx(ownerPk,memoText));
+      tx.feePayer=ownerPk; var latest=await connection.getLatestBlockhash(); tx.recentBlockhash=latest.blockhash;
+      if(useMobile){
+        var pend={ action:action, owner:wallet.pubkey, marker:'brun_sign' };
+        if(action==='score' && pendingResult){ pend.entrySig=entrySig; pend.score=pendingResult.score; pend.height=pendingResult.height; pend.oil=pendingResult.oil; pend.timeMs=pendingResult.timeMs; }
+        savePending(pend); setStatus('Opening Phantom to approve\u2026');
+        var unsigned=tx.serialize({ requireAllSignatures:false, verifySignatures:false });
+        PhantomMobile.signTransaction(unsigned, window.location.origin+window.location.pathname, 'brun_sign'); return null;
+      }
+      var signed=await provider.signTransaction(tx); setStatus('Sending payment\u2026');
+      var rawSig=await connection.sendRawTransaction(signed.serialize(),{ skipPreflight:false }); setStatus('Payment sent \u2014 waiting for confirmation\u2026');
+      var ok=await confirmSignature(connection,rawSig,30000); if(!ok) throw new PayError('Confirmation is taking longer than expected. Signature: '+rawSig+'. Do not pay again \u2014 check it first.');
+      return rawSig; // base58 on-chain signature
+    }
+
+    // ---- score memo (BRUN — no seed, no move-log, no replay; records NOT verified) ----
+    function buildScoreMemo(res){ return MEMO_TAG+'|score|sig='+String(entrySig).slice(0,32)+'|score='+res.score+'|route='+res.route+'|passes='+res.passes+'|time='+res.timeMs; }
+
+    // ---- flow glue (Bot Smash: single-run action game) ---------------------
+    function relabelStart(){
+      var b=$('paidPlayBtn'); if(!b) return;
+      b.textContent = canPlay() ? 'Play (25 OIL)' : (wallet.pubkey ? 'Need 25 OIL to play' : 'Connect wallet first');
+    }
+    function relabelStartBusy(t){ var b=$('paidPlayBtn'); if(b) b.textContent=t; }
+
+    function onEntryConfirmed(sig){ entrySig=sig; busy=false; lockModeToggle(true);
+      setStatus('Entry paid \u2014 good luck! Post your score after the run.', 'ok');
+      window.BOTRUNEngine.start(); }
+
+    // Called by the engine at game over. Returns true if this was a paid run (engine then skips its free overlay).
+    function onRunEnd(res){
+      if(mode!=='paid' || !entrySig) return false;
+      pendingResult={ score:res.score, route:res.route, passes:res.passes, timeMs:res.timeMs };
+      showRunOver(pendingResult); return true;
+    }
+    function fmtTime(ms){ var s=Math.round(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+
+    function showRunOver(res){
+      setStatus('Run over \u2014 post your score below to record it (1 OIL).', 'ok'); relabelStart();
+      var ov=$('paidOverlay'); ov.classList.add('show');
+      ov.innerHTML='<div class="card win"><h2>RUN OVER</h2><p>Route <b>'+res.route+'</b> \u00b7 Passes <b>'+res.passes+'</b> \u00b7 Score <b>'+res.score+'</b> \u00b7 Time <b>'+fmtTime(res.timeMs)+'</b><br/>Post it to the leaderboard (1 OIL) \u2014 a fun ranking, not verified.</p>'+
+        '<button class="btn" id="postBtn">Post score (1 OIL)</button></div>';
+      $('postBtn').addEventListener('click', onPost, { once:false });
+    }
+    async function onPost(){
+      if(busy || !pendingResult) return;
+      busy=true; var pb=$('postBtn'); if(pb){ pb.disabled=true; pb.textContent='Posting\u2026'; }
+      var memo=buildScoreMemo(pendingResult);
+      try{ var sig=await sendPayment(CFG.POST_FEE, memo, 'score'); if(sig===null) return; showPosted(pendingResult); }
+      catch(e){ setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey||'')+'</span><br/>'+((e instanceof PayError)?e.userMessage:'Your score post didn\u2019t confirm. Nothing recorded yet \u2014 tap to retry.'), 'warn');
+        if(pb){ pb.disabled=false; pb.textContent='Retry post'; } busy=false; }
+    }
+    function showPosted(res){ pendingResult=null; entrySig=null; busy=false; lockModeToggle(false);
+      $('posted-text').innerHTML='Route <b>'+res.route+'</b> \u00b7 Passes <b>'+res.passes+'</b> \u00b7 Score <b>'+res.score+'</b> \u00b7 Time <b>'+fmtTime(res.timeMs)+'</b>. It\u2019ll appear on the leaderboard once recorded on-chain \u2014 a fun ranking, not verified.';
+      $('paidOverlay').classList.remove('show');
+      $('postedSheet').classList.add('show');
+    }
+
+    // Paid start card (idle state before entry) — mirrors Mr Bot's resetToPlay.
+    function showPaidStart(){
+      entrySig=null; pendingResult=null; busy=false; lockModeToggle(false);
+      var ov=$('paidOverlay'); ov.classList.add('show');
+      ov.innerHTML='<div class="card"><h2>BOTRUN \u2014 PAID</h2><p>25 OIL entry \u00b7 one run against the clock \u00b7 fun leaderboard, not verified. Point Bot 106 down the coast, beat each checkpoint, pick your fork, reach a GOAL \u2014 holders \u00d71.5.</p>'+
+        '<button class="btn" id="paidPlayBtn">Play (25 OIL)</button></div>';
+      $('paidPlayBtn').addEventListener('click', function(){ handleStart(); });
+      relabelStart();
+      if(wallet.pubkey) checkBalance(wallet.pubkey);
+    }
+
+    // ---- connect (desktop + mobile — verbatim from Rush/Mr Bot) ------------
+    async function onConnect(){
+      var provider=getProvider();
+      if(!provider){
+        if(window.PhantomMobile && PhantomMobile.isMobile()){
+          var inBrowse=new URLSearchParams(window.location.search).get('src')==='browse';
+          if(!inBrowse){ connectBtn.disabled=true; connectBtn.textContent='Opening in Phantom\u2026'; setStatus('Opening this game inside Phantom\u2019s browser.');
+            var target=window.location.origin+window.location.pathname+'?src=browse';
+            window.location.href='https://phantom.app/ul/browse/'+encodeURIComponent(target)+'?ref='+encodeURIComponent(window.location.origin); return; }
+          connectBtn.disabled=true; connectBtn.textContent='Opening Phantom\u2026'; setStatus('Opening Phantom \u2014 approve, then you\u2019ll come back here.');
+          PhantomMobile.connect(window.location.origin+window.location.pathname); return;
+        }
+        setStatus('Phantom isn\u2019t reachable here. Open this page in a browser with the <a href="https://phantom.app" target="_blank" rel="noopener">Phantom</a> extension.', 'warn'); return;
+      }
+      connectBtn.disabled=true; connectBtn.textContent='Connecting\u2026';
+      try{ var resp=await provider.connect(); wallet.pubkey=resp.publicKey.toString(); connectBtn.textContent='Connected';
+        setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey)+'</span><br/>Checking your $OIL balance\u2026'); checkBalance(wallet.pubkey);
+      }catch(e){ connectBtn.disabled=false; connectBtn.textContent='Connect'; setStatus('Connection cancelled. Tap Connect to try again.', 'warn'); }
+    }
+
+    // ---- play (25 OIL entry) -----------------------------------------------
+    async function onPlay(){
+      if(busy || entrySig) return;
+      if(!canPlay()){ setStatus('Connect a wallet holding at least '+CFG.ENTRY_FEE+' $OIL to play.', 'warn'); return; }
+      busy=true; relabelStartBusy('Sending entry\u2026');
+      try{ var sig=await sendPayment(CFG.ENTRY_FEE, MEMO_TAG+'|entry', 'entry'); if(sig===null) return; onEntryConfirmed(sig); }
+      catch(e){ setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey||'')+'</span><br/>'+((e instanceof PayError)?e.userMessage:'Something went wrong sending the entry. No confirmed charge means nothing was taken.'), 'warn');
+        busy=false; relabelStart(); }
+    }
+
+    // handleStart is the entry gate reused by the Paid start card's Play button.
+    function handleStart(){
+      if(mode!=='paid') return false;      // Free: engine runs as normal
+      if(busy || entrySig) return true;    // in-flight or a paid run already armed: block
+      if(!wallet.pubkey){ setStatus('Connect a wallet with at least '+CFG.ENTRY_FEE+' $OIL, then tap Play.', 'warn'); return true; }
+      onPlay(); return true;
+    }
+
+    function onAgain(){ $('postedSheet').classList.remove('show'); window.BOTRUNEngine.idle(); showPaidStart(); }
+
+    // ---- mobile redirect resume (verbatim from Rush/Mr Bot; carries waves/score/timeMs) --
+    async function resume(){
+      var actionParam=new URLSearchParams(window.location.search).get('phantom_action');
+      if(!actionParam){
+        if(!wallet.pubkey && window.PhantomMobile && PhantomMobile.hasSession()){ wallet.pubkey=PhantomMobile.getSessionPublicKey();
+          connectBtn.textContent='Connected'; connectBtn.disabled=true; setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey)+'</span><br/>Checking your $OIL balance\u2026'); checkBalance(wallet.pubkey); }
+        return;
+      }
+      connectBtn.disabled=true; connectBtn.textContent='Finishing\u2026'; setStatus('Almost there \u2014 finishing up with Phantom\u2026');
+      var pending=loadPending(); var marker=pending?pending.marker:'brun_sign';
+      var result=window.PhantomMobile?PhantomMobile.consumePendingRedirect(marker):null;
+      if(result&&result.type==='connect'){ wallet.pubkey=result.publicKey; connectBtn.textContent='Connected';
+        setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey)+'</span><br/>Checking your $OIL balance\u2026'); checkBalance(wallet.pubkey); return; }
+      if(result&&result.type==='signTransaction'&&pending){ connectBtn.textContent='Connected'; connectBtn.disabled=true; if(pending.owner) wallet.pubkey=pending.owner; clearPending();
+        try{ var connection=new solanaWeb3.Connection(CFG.RPC,'confirmed'); var rawSig=await connection.sendRawTransaction(result.txBytes,{ skipPreflight:false });
+          setStatus('Payment sent \u2014 waiting for confirmation\u2026'); var ok=await confirmSignature(connection,rawSig,30000);
+          if(!ok) throw new PayError('Confirmation slow. Signature: '+rawSig+'. Do not pay again \u2014 check it first.');
+          if(pending.action==='entry'){ onEntryConfirmed(rawSig); }
+          else if(pending.action==='score'){ pendingResult={ score:pending.score, height:pending.height, oil:pending.oil, timeMs:pending.timeMs }; showPosted(pendingResult); }
+          if(wallet.pubkey) checkBalance(wallet.pubkey);
+        }catch(e){ setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey||'')+'</span><br/>'+((e instanceof PayError)?e.userMessage:'Something went wrong after returning from Phantom. Check your wallet activity before retrying.'), 'warn'); }
+        return;
+      }
+      connectBtn.disabled=false; connectBtn.textContent='Connect';
+      setStatus((result&&result.type==='error')?result.message:'The connection didn\u2019t complete \u2014 tap Connect to try again.', 'warn');
+    }
+
+    function init(){
+      if(inited) return; inited=true;
+      connectBtn=$('connectBtn'); walletStatus=$('walletStatus');
+      if(TEST_MODE){ $('testBanner').classList.remove('hidden'); }
+      connectBtn.addEventListener('click', onConnect);
+      $('againBtn').addEventListener('click', onAgain);
+    }
+
+    return { init:init, resume:resume, onRunEnd:onRunEnd, handleStart:handleStart,
+             showPaidStart:showPaidStart, hasSession:function(){ return window.PhantomMobile && PhantomMobile.hasSession(); } };
+  })();
+
+  window.BOTRUNPaid = Paid;
+
+  // ===== Mode switching (kid-safety: Paid is a deliberate opt-in) ============
+  var facts=$('facts');
+  var confirmSheet=$('confirmSheet');
+  var FREE_FACTS='Free \u00b7 wallet-free \u00b7 pays nothing';
+  var PAID_FACTS='Paid \u00b7 25 OIL entry \u00b7 one run \u00b7 fun leaderboard (not verified) \u00b7 holders \u00d71.5';
+
+  function setMode(m){
+    mode=m;
+    var f=$('modeFree'), p=$('modePaid');
+    if(m==='free'){
+      document.body.classList.remove('mode-paid');
+      f.classList.add('active'); p.classList.remove('active');
+      if(facts) facts.textContent=FREE_FACTS;
+    } else {
+      document.body.classList.add('mode-paid');
+      p.classList.add('active'); f.classList.remove('active');
+      if(facts) facts.textContent=PAID_FACTS;
+    }
+  }
+
+  $('modeFree').addEventListener('click', function(){ if(mode==='free') return; setMode('free'); window.BOTRUNEngine.resumeFree(); });
+  $('modePaid').addEventListener('click', function(){ if(mode==='paid') return; confirmSheet.classList.add('show'); });
+  $('confirmBack').addEventListener('click', function(){ confirmSheet.classList.remove('show'); });
+  $('confirmEnter').addEventListener('click', function(){ confirmSheet.classList.remove('show'); setMode('paid'); Paid.init(); window.BOTRUNEngine.idle(); Paid.showPaidStart(); if(Paid.hasSession && Paid.hasSession()) Paid.resume(); });
+
+  // ===== On load: Free by default. The wallet layer is only touched when returning
+  // ===== from a Phantom redirect or already inside Phantom's browser (both of which
+  // ===== can ONLY occur after the user opted into Paid). =====================
+  (function boot(){
+    var params=new URLSearchParams(window.location.search);
+    if(params.get('phantom_action') || params.get('src')==='browse'){ setMode('paid'); Paid.init(); window.BOTRUNEngine.idle(); Paid.showPaidStart(); Paid.resume(); }
+    else { setMode('free'); }
+  })();
+})();
+</script>
+</body>
+</html>
