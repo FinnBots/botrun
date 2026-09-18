@@ -57,14 +57,22 @@
   .surface{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
   /* Canvas fit — width-driven + letterbox. Tune aspect-ratio to your game (e.g. 9/16 portrait, 3/2 landscape). */
   canvas{ width:100%;height:auto;max-width:100%;max-height:100%;aspect-ratio:16/9;background:#20150f;border-radius:var(--r-lg);box-shadow:var(--sh2);image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none; }
-  .controls{display:flex;gap:var(--s6);align-items:center;justify-content:center;background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:6px var(--s4);box-shadow:var(--sh1)}
-  .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,40px);gap:4px}
+  /* Two-thumb racer layout: steer on the LEFT, pedals (gas/brake/gear) on the RIGHT,
+     so you can hold GAS and steer at the same time. */
+  .controls{display:flex;gap:var(--s3);align-items:center;justify-content:space-between;background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:6px var(--s3);box-shadow:var(--sh1)}
+  .cluster{display:flex;gap:6px;align-items:center}
+  .pedstack{display:flex;flex-direction:column;gap:6px}
   .ctl{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:20px;color:var(--plum-deep);background:#fff;border-radius:var(--r-sm);box-shadow:var(--sh1);touch-action:none;user-select:none;-webkit-user-select:none;display:flex;align-items:center;justify-content:center}
   .ctl:active,.ctl.on{transform:translateY(1px);background:var(--amber)}
   .ctl:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
-  .ctl.fire{font-size:13px;color:#fff;background:var(--plum)}
-  .ctl.fire:active,.ctl.fire.on{background:var(--plum-deep)}
-  #padU{grid-area:1/2/2/3} #padL{grid-area:2/1/3/2} #padFire{grid-area:2/2/3/3} #padR{grid-area:2/3/3/4} #padD{grid-area:3/2/4/3}
+  .ctl.steerbtn{width:62px;height:54px;font-size:24px}
+  .ctl.gas{width:88px;height:54px;font-size:15px;color:#4a2c10;background:var(--amber)}
+  .ctl.gas:active,.ctl.gas.on{background:#e08a1e;transform:translateY(1px)}
+  .ctl.small{width:70px;height:24px;font-size:12px}
+  .ctl.brake{color:#fff;background:var(--red)}
+  .ctl.brake:active,.ctl.brake.on{background:#8f2a1f}
+  .ctl.gear{color:#fff;background:var(--plum)}
+  .ctl.gear:active,.ctl.gear.on{background:var(--plum-deep)}
   .foot{text-align:center;min-height:28px}
   .foot .tag{font-family:var(--disp);font-size:13px;color:var(--muted);letter-spacing:.5px}
   .foot .links{font-size:12px;margin-top:1px}
@@ -141,12 +149,16 @@
     </main>
 
     <div class="controls" aria-label="Controls">
-      <div class="dpad">
-        <button class="ctl" id="padU" type="button" aria-label="Up">▲</button>
-        <button class="ctl" id="padL" type="button" aria-label="Left">◀</button>
-        <button class="ctl fire" id="padFire" type="button" aria-label="Fire">GO</button>
-        <button class="ctl" id="padR" type="button" aria-label="Right">▶</button>
-        <button class="ctl" id="padD" type="button" aria-label="Down">▼</button>
+      <div class="cluster" aria-label="Steering">
+        <button class="ctl steerbtn" id="padL" type="button" aria-label="Steer left">◀</button>
+        <button class="ctl steerbtn" id="padR" type="button" aria-label="Steer right">▶</button>
+      </div>
+      <div class="cluster" aria-label="Pedals">
+        <div class="pedstack">
+          <button class="ctl gear small" id="padFire" type="button" aria-label="Shift gear">GEAR L</button>
+          <button class="ctl brake small" id="padD" type="button" aria-label="Brake">BRAKE</button>
+        </div>
+        <button class="ctl gas" id="padU" type="button" aria-label="Accelerate">GAS ▲</button>
       </div>
     </div>
 
@@ -613,11 +625,13 @@ if(!HEADLESS){
   syncMute();
 
   // ---- HUD (DOM secondary; full racing HUD is on-canvas) ----
-  const elScore=document.getElementById('score'), elTime=document.getElementById('stat1'), elSpd=document.getElementById('lives');
+  const elScore=document.getElementById('score'), elTime=document.getElementById('stat1'), elSpd=document.getElementById('lives'), elGearBtn=document.getElementById('padFire');
   function pad(n,w){ return String(Math.max(0,Math.floor(n))).padStart(w,'0'); }
+  let gearShown='';
   function syncHUD(){ elScore.textContent=pad(s.score,8); elTime.textContent=Math.ceil(Math.max(0,s.timeLeft));
     if(s.timeLeft<=9 && uiPhase==='run'){ elTime.classList.add('warn'); } else elTime.classList.remove('warn');
-    elSpd.textContent = Math.round(s.speed/TO_KMH)+' · '+s.gear; }
+    elSpd.textContent = Math.round(s.speed/TO_KMH)+' · '+s.gear;
+    if(elGearBtn && s.gear!==gearShown){ gearShown=s.gear; elGearBtn.textContent='GEAR '+s.gear; } }
 
   /* ================= RENDER ============================================= */
   function lerp(a,b,p){ return a+(b-a)*p; }
