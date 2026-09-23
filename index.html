@@ -348,10 +348,14 @@ function buildStage(id){
     if(i % 23 === 0){ const sd = rng()<0.5?-1:1; segs[i].sprites.push({ side:sd, off:sd*(1.15+rng()*0.25), type:st.spr, solid:true }); }
   }
 
-  // traffic — density by stage. cars carry z, lane offset, speed, type, passed.
+  // Traffic — density by stage. Cars carry z, lane offset, speed, type, passed.
+  // Out Run's road is BUSY: you should have 2-4 cars in the 140-segment draw distance
+  // at all times, so there is always something to overtake. Spacing (segments per car)
+  // runs ~86 on the quietest stage down to ~44 on the busiest.
   const cars = [];
   const density = st.traffic;
-  const nCars = Math.floor(st.len/70 * density) + 4;
+  const spacing = 110 - 70*density;
+  const nCars = Math.floor(st.len/spacing) + 6;
   const trafType = ['cam','sip','ticker'];
   for(let c=0;c<nCars;c++){
     const segIdx = 30 + Math.floor(rng()*(segs.length-60));
@@ -1033,7 +1037,7 @@ if(!HEADLESS){
   }
 
   var Paid = (function(){
-    var TEST_MODE = false;     // GO-LIVE: real $OIL. Founder-flipped 2026-09-18 (BOTRUN Paid). Worker origin https://run.finnstergram.com added + deployed.
+    var TEST_MODE = false;     // <-- ships TEST for Localnet proof; flip to false ONLY with Founder confirm in this run's output
     var CFG = TEST_MODE ? {
       RPC: 'http://127.0.0.1:8899',
       TOKEN_PROGRAM: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
