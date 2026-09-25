@@ -509,7 +509,7 @@ canvas{ touch-action:none; }
 <script>
 "use strict";
 /* ==========================================================================
-   BOTRUN — FinnBots. ENGINE (Free gameplay). Out Run-loop pseudo-3D racer.
+   BOTRUN — FinnBots. ENGINE (Free gameplay). pseudo-3D racer loop pseudo-3D racer.
    Pure sim (newRun/stepGame + track/physics/forks/traffic) is DOM-free so the
    VERIFY termination sim can require() it; the DOM/render/input half is browser.
    Contract kept: export {newRun,stepGame}; window.BOTRUNEngine{start,idle,resumeFree};
@@ -639,7 +639,7 @@ function buildStage(id){
   }
 
   // Traffic — density by stage. Cars carry z, lane offset, speed, type, passed.
-  // Out Run's road is BUSY: you should have 2-4 cars in the 140-segment draw distance
+  // the original's road is BUSY: you should have 2-4 cars in the 140-segment draw distance
   // at all times, so there is always something to overtake. Spacing (segments per car)
   // runs ~86 on the quietest stage down to ~44 on the busiest.
   const cars = [];
