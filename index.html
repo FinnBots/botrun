@@ -844,8 +844,12 @@ if(HEADLESS){ module.exports = { CFG, STAGES, newRun, stepGame, buildStage, TO_K
 /* ======================= DOM / RENDER / INPUT (browser) =================== */
 if(!HEADLESS){
 (function(){
-  const cv=document.getElementById('game'); cv.width=W; cv.height=H;
-  const ctx=cv.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  const cv=document.getElementById('game');
+  /* SUPERSAMPLED BACKING STORE (2026-09-25) — see the other games: SS x backing,
+     context scaled by SS, so fillText gets SS times the pixels and the draw code
+     is untouched. */
+  const SS=3; cv.width=W*SS; cv.height=H*SS;
+  const ctx=cv.getContext('2d'); ctx.imageSmoothingEnabled=false; ctx.setTransform(SS,0,0,SS,0,0);
   const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let s=newRun();
 
