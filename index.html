@@ -711,7 +711,13 @@ function stepGame(s, dtMs){
     s.crash -= dtMs;
     s.speed -= (s.crashType==='bin'?BRAKE*1.4:BRAKE*0.9)*dt;
     if(s.speed<0) s.speed=0;
-    s.crashSpin += dt* (s.crashType==='bin'? 9 : 6);
+    /* a shunt used to spin 6 rad/s for 1200ms = 1.15 FULL rotations, which from
+       behind reads as the car flipping over rather than spinning out. Slew toward
+       a capped angle instead, so it slides and settles. (Founder, 2026-09-29) */
+    { const capSpin = (s.crashType==='bin' ? 2.4 : 1.2);        /* rad: ~0.4 / ~0.2 turns */
+      const rate    = (s.crashType==='bin' ? 4.5 : 3.0);
+      s.crashSpin += dt*rate;
+      if(s.crashSpin > capSpin) s.crashSpin = capSpin; }
     if(s.crash<=0){
       // place back on nearest asphalt, forced Low, stopped-ish
       s.crash=0; s.crashType=null; s.crashSpin=0;
@@ -809,9 +815,33 @@ function _updateTraffic(s, track, dt, ev){
     if(c._drift===undefined){ c._drift=0; }
     // collision test: only when player overlaps car in z this frame and not wrecked
     const dz = c.z - playerZ;
-    if(s.crash<=0 && Math.abs(dz) < SEG_LEN*1.2){
+
+    /* TRAFFIC YIELDS. At full speed (293 km/h in High) the player closes ~206
+       world units per FRAME, so a car that simply sits in your lane is on you
+       before you can react — a perfect lane-picking proxy still crashed 4x a
+       minute. Real traffic moves over. A car that sees you coming up its lane
+       drifts aside, proportional to how fast you are closing, which restores a
+       reaction window without slowing the car down. (2026-09-29) */
+    if(s.crash<=0 && dz > 0 && dz < SEG_LEN*14){
+      const lat = c.off - s.playerX;
+      if(Math.abs(lat) < 0.5){
+        const closing = Math.max(0, s.speed - c.speed) / MAXSPD;      /* 0..1 */
+        const urgency = 1 - (dz / (SEG_LEN*14));                      /* nearer = stronger */
+        const away = (lat >= 0 ? 1 : -1) * 1.4 * closing * urgency * dt;
+        c.off = clamp(c.off + away, -0.92, 0.92);
+      }
+    }
+
+    /* SWEPT collision. The old test asked whether the car was within 240 units
+       of the player THIS frame; at top speed the player advances 206 units in a
+       frame, so the window barely covered one step and a car could be stepped
+       clean past. Test the interval the player actually traversed. */
+    const playerPrevZ = playerZ - s.speed*dt;
+    const crossed = (c.z >= Math.min(playerPrevZ, playerZ) - SEG_LEN*0.6) &&
+                    (c.z <= Math.max(playerPrevZ, playerZ) + SEG_LEN*0.6);
+    if(s.crash<=0 && crossed){
       const dx = Math.abs(s.playerX - c.off);
-      if(dx < 0.42){
+      if(dx < 0.34){
         // hit! class by speed / relative closing
         const kmh = s.speed/TO_KMH;
         if(kmh > 180){ s.crash = 2400; s.crashType='bin'; s.speed = 0; s.gear='L'; ev.crash='bin'; }
