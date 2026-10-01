@@ -986,9 +986,15 @@ function _updateHazards(s, track, dt, ev){
   const playerPrevZ = playerZ - s.speed*dt;
   const lo = Math.min(playerPrevZ, playerZ) - SEG_LEN*0.5;
   const hi = Math.max(playerPrevZ, playerZ) + SEG_LEN*0.5;
-  for(let i=0;i<track.haz.length;i++){
+  /* A stage carries ~1,000 obstacles (most of them roadside props) and the list
+     is sorted by z, so walking it from zero every frame is ~60,000 comparisons
+     a second for a window a handful of entries wide. The player's z only ever
+     increases within a stage, so carry a cursor. A fresh stage is a fresh
+     track object and starts its own at 0. */
+  if(track._hazCur === undefined) track._hazCur = 0;
+  while(track._hazCur < track.haz.length && track.haz[track._hazCur].z < lo) track._hazCur++;
+  for(let i=track._hazCur;i<track.haz.length;i++){
     const hz = track.haz[i];
-    if(hz.z < lo) continue;
     if(hz.z > hi) break;                       // haz is sorted by z
     if(hz.done) continue;
     const dx = Math.abs(s.playerX - hz.off);
