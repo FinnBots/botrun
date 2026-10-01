@@ -538,6 +538,8 @@ const ACC_HMIN = 850;           // H: crawls from low RPM
 const ACC_HMAX = 4200;          // H: strong once wound up
 const ENG_BRK  = 1500;          // coast engine-brake
 const BRAKE    = 9500;          // brake decel
+const DIST_PER_POINT = 20;      // world units of asphalt per point (arcade scores ground covered)
+const PASS_PTS = 2000;          // Founder decision: keep the overtake bonus (see the private fidelity audit)
 const OFF_DRAG = 7000;          // off-road extra drag
 const CENTRIFUGAL = 0.32;       // how hard curves push you out
 
@@ -671,7 +673,7 @@ function newRun(){
     phase:'play',
     score:0,
     // driving
-    speed:0, pos:0, playerX:0, gear:'L', steerAng:0,
+    speed:0, pos:0, playerX:0, gear:'L', steerAng:0, _distAcc:0,
     // clock
     timeLeft:START_TIME, timeMs:0,
     // stage / route
@@ -766,11 +768,20 @@ function stepGame(s, dtMs){
   // ---- traffic + collisions + passes ----
   _updateTraffic(s, track, dt, ev);
 
-  // ---- scoring on asphalt (not off-road, not crashing) ----
-  if(!off){
-    const kmh = s.speed/TO_KMH;
-    let rate = kmh<80?6 : kmh<160?16 : kmh<240?34 : 60; // points/sec by speed band
-    s.score += Math.round(rate*dt);
+  /* ---- scoring: GROUND COVERED, which is what the arcade scores ----
+     This used to be points per SECOND, banded by speed — so the clock paid you
+     whether or not you were going anywhere, and a player sitting still on the
+     asphalt still earned. Scoring the distance actually travelled makes speed
+     the only thing that pays, which is both the arcade's rule
+     (the genre's arcade scoring is ground covered plus a large time bonus at
+     the goal — see the private fidelity audit) and the property the
+     leaderboard is sold on.
+     The remainder is carried between frames: at 60 fps a single frame's worth
+     of distance rounds to zero, and Math.round() of it silently scored nothing. */
+  if(!off && s.crash<=0){
+    s._distAcc = (s._distAcc || 0) + s.speed*dt;
+    const earned = Math.floor(s._distAcc / DIST_PER_POINT);
+    if(earned > 0){ s.score += earned; s._distAcc -= earned*DIST_PER_POINT; }
   }
 
   // ---- stage end: checkpoint / fork / goal ----
@@ -805,6 +816,7 @@ function _advance(s, track, dt){
 // traffic update + collision + pass scoring. dtMs used for crash windows.
 function _updateTraffic(s, track, dt, ev){
   const playerZ = s.pos + CAM_H*CAM_DEPTH;
+  const playerPrevZ = playerZ - s.speed*dt;      // where we were at the start of the frame
   for(let i=0;i<track.cars.length;i++){
     const c = track.cars[i];
     const prevZ = c.z;
@@ -836,7 +848,6 @@ function _updateTraffic(s, track, dt, ev){
        of the player THIS frame; at top speed the player advances 206 units in a
        frame, so the window barely covered one step and a car could be stepped
        clean past. Test the interval the player actually traversed. */
-    const playerPrevZ = playerZ - s.speed*dt;
     const crossed = (c.z >= Math.min(playerPrevZ, playerZ) - SEG_LEN*0.6) &&
                     (c.z <= Math.max(playerPrevZ, playerZ) + SEG_LEN*0.6);
     if(s.crash<=0 && crossed){
@@ -849,21 +860,42 @@ function _updateTraffic(s, track, dt, ev){
         continue;
       }
     }
-    // pass credit: player z passes the car's z going forward, on asphalt, not wrecked
-    if(!c.passed && s.crash<=0 && !s.offRoad && prevZ < playerZ && c.z <= playerZ + 1 && (playerZ - c.z) < SEG_LEN*4){
-      // only count once we are clearly ahead
-    }
-    // simpler robust pass detection: player segment index passes car segment index
+    c._prevZ = prevZ;
+    c._wrapped = (c.z < prevZ);        // it jumped back to the start of the track
   }
-  // robust pass scoring pass (separate loop keyed on segment index crossing)
-  const pSeg = Math.floor(playerZ/SEG_LEN);
+
+  /* PASS CREDIT IS A CROSSING EVENT, NOT A POSITION TEST.
+     The old rule was `playerSegment > carSegment` — it asked where the two
+     WERE, never whether the player had gone past. Cars wrap to the start of the
+     track, so a car that lapped round reappeared "behind" a stationary player
+     and was credited as an overtake; the re-arm below then let the same car pay
+     out again on its next lap. A parked player at 0 km/h who had travelled zero
+     distance banked 9 passes and 18,000 points in 40 s, which is MORE than a
+     player actually driving at 149 km/h scored. Skill was worth less than
+     nothing.
+
+     This is the same defect the swept collision test a few lines above was
+     written to fix, in the same function: a per-frame position comparison
+     cannot tell you that one thing moved past another. Ask whether the player
+     CROSSED the car between its previous and current position, ignore the frame
+     a car wraps, and require the player to actually be the faster one — being
+     overtaken is not an overtake. */
   for(let i=0;i<track.cars.length;i++){
     const c = track.cars[i];
-    const cSeg = Math.floor(c.z/SEG_LEN);
-    if(!c.passed && s.crash<=0 && !s.offRoad && pSeg > cSeg && (pSeg - cSeg) < 6){
-      c.passed=true; s.passes++; s.score += 2000; ev.pass=true;
+    if(c._wrapped) continue;                        // meaningless comparison this frame
+    if(c.passed || s.crash>0 || s.offRoad) continue;
+    if(s.speed <= c.speed) continue;                // THEY passed US
+    const wasBehind = playerPrevZ <= c._prevZ;
+    const nowAhead  = playerZ     >  c.z;
+    if(wasBehind && nowAhead){
+      c.passed = true; s.passes++; s.score += PASS_PTS; ev.pass = true;
     }
-    if(c.passed && cSeg > pSeg + 8) c.passed=false; // re-arm if it gets ahead again after wrap
+  }
+  // re-arm only for a car that has genuinely pulled ahead again under its own
+  // speed, never for one that merely wrapped round the track
+  for(let i=0;i<track.cars.length;i++){
+    const c = track.cars[i];
+    if(c.passed && !c._wrapped && c.z > playerZ + SEG_LEN*8) c.passed = false;
   }
 }
 
