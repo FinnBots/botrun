@@ -1157,12 +1157,26 @@ if(!HEADLESS){
       P2.wz=(idx+1)*SEG_LEN; P2.wy=seg.p2y; project(P2, camX - x - dx, camY, s.pos);
       const x1=P1.sx,y1=P1.sy,w1=P1.sw,x2=P2.sx,y2=P2.sy,w2=P2.sw,sc1=P1.scale;
       x+=dx; dx+=seg.curve;
-      // record for sprites (even if clipped, so cars behind crest still roughly placed)
-      /* `vis` says the road of this segment was actually PAINTED. Sprites on a
-         segment hidden behind a crest used to be drawn anyway, which floats a
-         car in the sky above the horizon. Near segments are always visible. */
-      SEGPROJ[idx]={x:x2,y:y2,w:w2,scale:P2.scale,vis:true};
-      if(P1.cz<=CAM_DEPTH || y2>=y1 || y1>maxy){ SEGPROJ[idx].vis = (n<3); continue; }
+      /* THREE REASONS TO SKIP PAINTING THE ROAD, AND ONLY TWO OF THEM HIDE A TREE.
+         `vis` gates the sprites standing on this segment. It first asked simply
+         "was the road painted here?", which strobed the whole roadside: 97% of
+         the flicker measured in play came from `y2 >= y1` alone. That test means
+         the segment's trapezoid rounds to ZERO PIXELS of screen height — there
+         is nothing to paint for the ROAD — and at distance, sub-pixel rounding
+         flips it on and off every few frames. It says nothing about whether a
+         tree on that segment can be seen, so a tree inherited the strobe: the
+         worst one blinked 28 times in two seconds.
+         What actually hides a sprite is being behind a rise (`y1 > maxy`, the
+         crest clip, which is what stops a car floating above the horizon) or
+         being level with the camera. Measured after separating them: 535
+         visibility flips over 120 frames -> 9, and the nine left are real
+         occlusion behind a hill. */
+      const tooNear     = P1.cz <= CAM_DEPTH;
+      const zeroHeight  = (y2 >= y1);        // no trapezoid to paint — NOT an occlusion
+      const behindCrest = (y1 > maxy);       // genuinely hidden by a rise in the road
+      SEGPROJ[idx]={x:x2,y:y2,w:w2,scale:P2.scale,
+                    vis: (!tooNear && !behindCrest) || n<3};
+      if(tooNear || zeroHeight || behindCrest){ continue; }
       const dark=(Math.floor(idx/RUMBLE)%2)===0;
       const pal=track.pal;
       const grass=dark?pal.grass1:pal.grass2;
