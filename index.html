@@ -543,6 +543,17 @@ const PASS_PTS = 2000;          // Founder decision: keep the overtake bonus (se
 const OFF_DRAG = 7000;          // off-road extra drag
 const CENTRIFUGAL = 0.32;       // how hard curves push you out
 
+/* ---- HITBOXES, in `off` units (1.0 = half the road) ----------------------
+   These are ALSO the drawn widths. BOTRUN shipped with a 0.34 collision
+   threshold and a sprite layer that drew traffic 2.5 px wide and then culled
+   it, so what you hit and what you saw had no relationship at all. Every
+   number below is used by the sim AND by the renderer, so a hitbox cannot
+   drift away from its sprite again. */
+const PLAYER_HALF = 0.14;       // half-width of Bot 106's car
+const CAR_W       = 0.28;       // cam/sip traffic, full width
+const TICKER_MUL  = 1.35;       // the ticker bot is a truck
+const HAZ_W = { cone:0.16, barrier:0.34, slick:0.42, prop:0.36 };
+const SLICK_MS = 1000;          // how long a spill costs you grip
 /* ===================== COURSE TREE (15 stages, 5 goals) ================== */
 // left is generally kinder, right meaner. letter set only on goal (stage-5) nodes.
 const STAGES = {
@@ -632,13 +643,57 @@ function buildStage(id){
   const finish = segs.length-1;
   segs[finish].checkpoint = true;
 
-  // roadside scenery + hazards
+  // roadside scenery
   for(let i=8;i<segs.length-8;i++){
     if(i % 6 === 0){ segs[i].sprites.push({ side:-1, off:-2.0-rng()*2.5, type:st.spr }); }
     if(i % 7 === 0){ segs[i].sprites.push({ side: 1, off: 2.0+rng()*2.5, type:st.spr }); }
-    // occasional near-edge solid hazard
-    if(i % 23 === 0){ const sd = rng()<0.5?-1:1; segs[i].sprites.push({ side:sd, off:sd*(1.15+rng()*0.25), type:st.spr, solid:true }); }
   }
+
+  /* ===================== OBSTACLES =======================================
+     Two kinds, and BOTH are new: the road used to carry nothing but traffic.
+
+     1. ROADSIDE PROPS (`solid`). These were already in the track data and were
+        already drawn in a hotter colour to say "this one will hurt" — and
+        nothing ever tested them, so running one over did exactly nothing.
+        They now stop the car, which is what the arcade does to you for
+        clipping the scenery, and it is what makes going off-road a decision
+        instead of a free shortcut.
+     2. ON-ROAD HAZARDS. A FinnBots addition — the arcade's asphalt is clear.
+        Recorded as a deliberate deviation in the private fidelity audit.
+
+     FAIRNESS RULE — the reason these are generated and not hand-placed: a
+     cluster puts something SOLID in at most ONE of the three lanes, so two
+     lanes are always open and no cluster can ever be a wall. A spill may sit
+     in a second lane; it costs grip, never the run. `verify-road.js` walks
+     every segment of all 15 stages and fails the build if that is ever untrue.
+     ====================================================================== */
+  const haz = [];
+  const depth = +String(id)[0];                       // 1..5, how deep in the tree
+  const laneOff = [-0.55, 0, 0.55];
+  /* Roadside props: solid, drawn AND lethal. Set back from the white line on
+     purpose. At 1.15 — a sixth of a road-width past the edge — the expert
+     driver's crashes were mostly PROPS (18 of 33) and almost none of them were
+     mistakes: the centrifugal pull on a fast curve carries you a little wide,
+     and there was something solid waiting right there. Drifting onto the grass
+     is already punished by the speed cap and the drag. A prop should punish
+     going WIDE, so it stands back far enough to leave a margin. */
+  for(let i=24;i<segs.length-24;i++){
+    if(i % 23 === 0){ const sd = rng()<0.5?-1:1; const o = sd*(1.35+rng()*0.4);
+      segs[i].sprites.push({ side:sd, off:o, type:st.spr, solid:true });
+      haz.push({ z:i*SEG_LEN, off:o, type:'prop', noDraw:true }); }
+  }
+  // on-road clusters, denser the deeper into the tree you are
+  const hazGap = Math.round(180 - 22*(depth-1));      // 180 -> 92 segments apart
+  for(let i = 60; i < segs.length - 60; i += hazGap + Math.floor(rng()*50)){
+    const blocked = Math.floor(rng()*3);
+    haz.push({ z:i*SEG_LEN, off:laneOff[blocked], type: rng()<0.62 ? 'cone' : 'barrier' });
+    if(depth >= 3 && rng() < 0.45){                   // a spill in ANOTHER lane
+      const others = [0,1,2].filter(k=>k!==blocked);
+      const k = others[Math.floor(rng()*others.length)];
+      haz.push({ z:(i + 2 + Math.floor(rng()*4))*SEG_LEN, off:laneOff[k], type:'slick' });
+    }
+  }
+  haz.sort((a,b)=>a.z-b.z);
 
   // Traffic — density by stage. Cars carry z, lane offset, speed, type, passed.
   // the original's road is BUSY: you should have 2-4 cars in the 140-segment draw distance
@@ -659,7 +714,7 @@ function buildStage(id){
   }
 
   return { id, name:st.name, letter:st.letter||null, goalMsg:st.goalMsg||'', pal:st.pal, spr:st.spr,
-           L:st.L||null, R:st.R||null, segs, cars, len:segs.length, trackLen: segs.length*SEG_LEN, isGoal: !!st.letter };
+           L:st.L||null, R:st.R||null, segs, cars, haz, len:segs.length, trackLen: segs.length*SEG_LEN, isGoal: !!st.letter };
 }
 
 /* ===================== helpers ========================================== */
@@ -681,6 +736,8 @@ function newRun(){
     passes:0,
     // crash
     crash:0, crashType:null, crashSpin:0, offRoad:false, onExtend:0,
+    // a spill under the wheels: grip is gone for a moment, the run is not
+    slick:0,
     // input (set by wrapper / policy)
     inSteer:0, inAccel:false, inBrake:false, inGearToggle:false, _gearLatch:false,
     // fx flags for the frame
@@ -698,6 +755,7 @@ function stepGame(s, dtMs){
   s.timeLeft -= dt;
   s.timeMs   += dtMs;
   if(s.onExtend>0) s.onExtend -= dtMs;
+  if(s.slick>0){ s.slick -= dtMs; if(s.slick<0) s.slick=0; }
   if(s.timeLeft <= 0){ s.timeLeft=0; s.phase='dead'; ev.over=true; return ev; }
 
   // ---- gear toggle (edge) ----
@@ -754,12 +812,16 @@ function stepGame(s, dtMs){
     ev.rumble = true;
   }
 
-  // ---- steering (analog, ramped) ----
+  /* ---- steering (analog, ramped) ----
+     On a spill the wheels stop answering: the steering lags, bites at about a
+     third, and the curve throws you wide. It is the one hazard that does not
+     end your run — you fight it back onto the road and keep going. */
   const spdPct = s.speed/MAXSPD;
-  s.steerAng += (s.inSteer - s.steerAng) * Math.min(1, dt/0.12);
-  s.playerX += s.steerAng * 2.4 * dt * (0.35 + spdPct*0.65);
+  const slipping = s.slick>0;
+  s.steerAng += (s.inSteer - s.steerAng) * Math.min(1, dt/(slipping?0.38:0.12));
+  s.playerX += s.steerAng * 2.4 * dt * (0.35 + spdPct*0.65) * (slipping?0.35:1);
   // centrifugal pull outward on curves, scaled by speed
-  s.playerX -= segCurve * spdPct * spdPct * CENTRIFUGAL * dt;
+  s.playerX -= segCurve * spdPct * spdPct * CENTRIFUGAL * (slipping?2.2:1) * dt;
   s.playerX = clamp(s.playerX, -2.2, 2.2);
 
   // ---- advance along track ----
@@ -767,6 +829,9 @@ function stepGame(s, dtMs){
 
   // ---- traffic + collisions + passes ----
   _updateTraffic(s, track, dt, ev);
+
+  // ---- obstacles: cones, barriers, spills, and the roadside props ----
+  _updateHazards(s, track, dt, ev);
 
   /* ---- scoring: GROUND COVERED, which is what the arcade scores ----
      This used to be points per SECOND, banded by speed — so the clock paid you
@@ -828,21 +893,19 @@ function _updateTraffic(s, track, dt, ev){
     // collision test: only when player overlaps car in z this frame and not wrecked
     const dz = c.z - playerZ;
 
-    /* TRAFFIC YIELDS. At full speed (293 km/h in High) the player closes ~206
-       world units per FRAME, so a car that simply sits in your lane is on you
-       before you can react — a perfect lane-picking proxy still crashed 4x a
-       minute. Real traffic moves over. A car that sees you coming up its lane
-       drifts aside, proportional to how fast you are closing, which restores a
-       reaction window without slowing the car down. (2026-09-29) */
-    if(s.crash<=0 && dz > 0 && dz < SEG_LEN*14){
-      const lat = c.off - s.playerX;
-      if(Math.abs(lat) < 0.5){
-        const closing = Math.max(0, s.speed - c.speed) / MAXSPD;      /* 0..1 */
-        const urgency = 1 - (dz / (SEG_LEN*14));                      /* nearer = stronger */
-        const away = (lat >= 0 ? 1 : -1) * 1.4 * closing * urgency * dt;
-        c.off = clamp(c.off + away, -0.92, 0.92);
-      }
-    }
+    /* TRAFFIC HOLDS ITS LANE, which is what the BRIEF locked and what the
+       arcade does. It briefly did not: a "cars move over for you" rule was
+       added on 2026-09-29 because a perfect lane-picking proxy still crashed
+       four times a minute, and it was treated as traffic being unreasonable.
+       It was not. Traffic was INVISIBLE — the sprite layer drew every car
+       2.5 px wide and then culled it below 3 px, so no car was ever on screen
+       at any distance (see drawCar). The proxy crashed because it was dodging
+       from the car list, and a human had nothing at all to dodge from.
+       Yielding treated the symptom, could never work (it bought 0.16 lanes of
+       clearance against the 0.28 needed) and left traffic wandering off its
+       lane for the rest of the stage. The sprite fix is the real one, so the
+       crutch is gone. A lazy in-lane wander is all that is left. */
+    c.off = c.lane + Math.sin((c.z + i*977) / 2600) * 0.045;
 
     /* SWEPT collision. The old test asked whether the car was within 240 units
        of the player THIS frame; at top speed the player advances 206 units in a
@@ -850,13 +913,24 @@ function _updateTraffic(s, track, dt, ev){
        clean past. Test the interval the player actually traversed. */
     const crossed = (c.z >= Math.min(playerPrevZ, playerZ) - SEG_LEN*0.6) &&
                     (c.z <= Math.max(playerPrevZ, playerZ) + SEG_LEN*0.6);
-    if(s.crash<=0 && crossed){
+    /* YOU CAN ONLY CRASH INTO SOMETHING YOU ARE CATCHING.
+       The old test wrecked the player on ANY overlap, including a car coming
+       up behind — so a player sitting at 0 km/h with the brake on was rammed
+       EIGHT TIMES A MINUTE by his own traffic while stationary, and a player
+       who had just been binned was rear-ended again the moment he stopped.
+       That is the cascade behind "accelerating crashes the car": crash, stop,
+       get hit, stop, get hit. Traffic behind you is not a threat in this genre
+       and it never was. Require the player to be the one closing. */
+    if(s.crash<=0 && crossed && s.speed > c.speed){
       const dx = Math.abs(s.playerX - c.off);
-      if(dx < 0.34){
+      // the hitbox IS the drawn width — see the HITBOXES block up top
+      const hit = PLAYER_HALF + (CAR_W * (c.type==='ticker'?TICKER_MUL:1)) / 2;
+      if(dx < hit){
         // hit! class by speed / relative closing
         const kmh = s.speed/TO_KMH;
         if(kmh > 180){ s.crash = 2400; s.crashType='bin'; s.speed = 0; s.gear='L'; ev.crash='bin'; }
         else { s.crash = 1200; s.crashType='shunt'; s.speed *= 0.15; ev.crash='shunt'; }
+        ev.crashSrc='traffic';                     // what hit you — gates tune on this split
         continue;
       }
     }
@@ -899,9 +973,40 @@ function _updateTraffic(s, track, dt, ev){
   }
 }
 
+/* ===================== OBSTACLES ========================================
+   Cones, barriers and spills on the asphalt, plus the roadside props that
+   were drawn-but-inert for the whole of this game's life. Swept, like the
+   traffic test above and for the same reason: at 293 km/h the car covers 200
+   world units in a frame, so "is it near me THIS frame" decides the outcome
+   by frame alignment rather than by play. Ask whether the car crossed it.
+   ====================================================================== */
+function _updateHazards(s, track, dt, ev){
+  if(s.crash>0 || !track.haz || !track.haz.length) return;
+  const playerZ = s.pos + CAM_H*CAM_DEPTH;
+  const playerPrevZ = playerZ - s.speed*dt;
+  const lo = Math.min(playerPrevZ, playerZ) - SEG_LEN*0.5;
+  const hi = Math.max(playerPrevZ, playerZ) + SEG_LEN*0.5;
+  for(let i=0;i<track.haz.length;i++){
+    const hz = track.haz[i];
+    if(hz.z < lo) continue;
+    if(hz.z > hi) break;                       // haz is sorted by z
+    if(hz.done) continue;
+    const dx = Math.abs(s.playerX - hz.off);
+    if(dx >= PLAYER_HALF + HAZ_W[hz.type]/2) continue;
+    hz.done = true;
+    if(hz.type === 'slick'){ s.slick = SLICK_MS; ev.slick = true; continue; }
+    const kmh = s.speed/TO_KMH;
+    if(hz.type !== 'cone' && kmh > 180){ s.crash=2400; s.crashType='bin'; s.speed=0; s.gear='L'; ev.crash='bin'; }
+    else { s.crash=1200; s.crashType='shunt'; s.speed*=0.25; ev.crash='shunt'; }
+    ev.crashSrc=hz.type;
+    return;                                    // one wreck per frame
+  }
+}
+
 /* ===================== headless export for VERIFY ======================== */
 const HEADLESS = (typeof document === 'undefined');
-if(HEADLESS){ module.exports = { CFG, STAGES, newRun, stepGame, buildStage, TO_KMH, MAXSPD, MAX_L }; }
+if(HEADLESS){ module.exports = { CFG, STAGES, newRun, stepGame, buildStage, TO_KMH, MAXSPD, MAX_L,
+                                 PLAYER_HALF, CAR_W, TICKER_MUL, HAZ_W, SEG_LEN, CAM_H, CAM_DEPTH }; }
 
 /* ======================= DOM / RENDER / INPUT (browser) =================== */
 if(!HEADLESS){
@@ -933,6 +1038,7 @@ if(!HEADLESS){
     if(type==='gear'){ f=520; d=0.08; }
     else if(type==='pass'){ f=880; d=0.1; }
     else if(type==='check'){ f=660; d=0.25; ty='triangle'; }
+    else if(type==='slick'){ f=320; d=0.3; ty='sine'; }
     else if(type==='shunt'){ f=150; d=0.22; ty='sawtooth'; }
     else if(type==='bin'){ f=90; d=0.5; ty='sawtooth'; }
     else if(type==='beep'){ f=1040; d=0.07; }
@@ -1046,8 +1152,11 @@ if(!HEADLESS){
       const x1=P1.sx,y1=P1.sy,w1=P1.sw,x2=P2.sx,y2=P2.sy,w2=P2.sw,sc1=P1.scale;
       x+=dx; dx+=seg.curve;
       // record for sprites (even if clipped, so cars behind crest still roughly placed)
-      SEGPROJ[idx]={x:x2,y:y2,w:w2,scale:P2.scale};
-      if(P1.cz<=CAM_DEPTH || y2>=y1 || y1>maxy){ continue; }
+      /* `vis` says the road of this segment was actually PAINTED. Sprites on a
+         segment hidden behind a crest used to be drawn anyway, which floats a
+         car in the sky above the horizon. Near segments are always visible. */
+      SEGPROJ[idx]={x:x2,y:y2,w:w2,scale:P2.scale,vis:true};
+      if(P1.cz<=CAM_DEPTH || y2>=y1 || y1>maxy){ SEGPROJ[idx].vis = (n<3); continue; }
       const dark=(Math.floor(idx/RUMBLE)%2)===0;
       const pal=track.pal;
       const grass=dark?pal.grass1:pal.grass2;
@@ -1072,22 +1181,85 @@ if(!HEADLESS){
 
     // ---- roadside sprites + traffic, far -> near ----
     const drawList=[];
-    for(let n=DRAW_DIST-1;n>=0;n--){ const idx=baseIndex+n; if(idx>=N||idx<0)continue; const pr=SEGPROJ[idx]; if(!pr)continue;
+    for(let n=DRAW_DIST-1;n>=0;n--){ const idx=baseIndex+n; if(idx>=N||idx<0)continue; const pr=SEGPROJ[idx]; if(!pr||!pr.vis)continue;
       const seg=segs[idx];
       for(const sp of seg.sprites){ drawList.push({z:idx, pr, kind:'scn', sp}); }
     }
-    // cars: map to nearest drawn segment
-    for(const c of track.cars){ const idx=Math.floor(c.z/SEG_LEN); if(idx<baseIndex||idx>=baseIndex+DRAW_DIST||idx>=N)continue; const pr=SEGPROJ[idx]; if(!pr)continue; drawList.push({z:idx, pr, kind:'car', c}); }
+    /* Cars and obstacles are drawn only from the player's own plane OUTWARD.
+       Nearer than that they are behind the camera's focus and the projection
+       blows them up to fill the screen — a car you have already gone past
+       would swallow the frame on its way out. The road and the scenery still
+       run right up to the camera; only the things you collide with stop at
+       the plane you collide on. */
+    const nearIdx = pIdx;
+    for(const c of track.cars){ const idx=Math.floor(c.z/SEG_LEN); if(idx<nearIdx||idx>=baseIndex+DRAW_DIST||idx>=N)continue; const pr=SEGPROJ[idx]; if(!pr||!pr.vis)continue; drawList.push({z:idx, pr, kind:'car', c}); }
+    for(const hz of track.haz){ if(hz.noDraw||hz.done)continue; const idx=Math.floor(hz.z/SEG_LEN); if(idx<nearIdx||idx>=baseIndex+DRAW_DIST||idx>=N)continue; const pr=SEGPROJ[idx]; if(!pr||!pr.vis)continue; drawList.push({z:idx, pr, kind:'haz', hz}); }
     drawList.sort((a,b)=>b.z-a.z);
-    for(const d of drawList){ if(d.kind==='scn') drawScenery(d.pr, d.sp, s.track.spr); else drawCar(d.pr, d.c); }
+    for(const d of drawList){ if(d.kind==='scn') drawScenery(d.pr, d.sp, s.track.spr);
+                              else if(d.kind==='haz') drawHazard(d.pr, d.hz);
+                              else drawCar(d.pr, d.c); }
   }
 
   function spriteX(pr, off){ return pr.x + pr.scale*(off*ROAD_W)*W/2; }
 
+  /* ======================================================================
+     SPRITE SIZE. Everything on this road is measured in `off` units — the
+     same units the sim collides in, where 1.0 is half the road — and turned
+     into pixels with the segment's OWN projected half-road width, `pr.w`.
+
+     This is the bug that made BOTRUN unplayable, and it was here from the
+     first commit. `spriteX` above has the projection right: it carries the
+     `* ROAD_W * W/2` term that `project()` uses for the road itself. The two
+     SIZE expressions did not — `drawCar` asked for `scale * 2600` and
+     `drawScenery` for `scale * 3000`, both missing that factor of ~63.
+     A traffic car at the exact distance where it hits you came out 2.5 px
+     wide, and the next line culled anything under 3 px, so NO CAR AND NO TREE
+     WAS EVER DRAWN, at any distance, in any stage. The road has been empty
+     for this game's whole life. The sim had the traffic all along — every
+     gate drives the sim, none of them ever rendered a frame — so the player
+     accelerated into cars that were never on screen, which is exactly what
+     "accelerating crashes the car" looks like from the driver's seat.
+     Sizing off `pr.w` means a sprite cannot drift away from its hitbox again.
+     ====================================================================== */
+  function pxW(pr, offUnits){ return pr.w * offUnits; }
+
   function drawScenery(pr, sp, type){
-    const gx=spriteX(pr, sp.off); const gy=pr.y; const h=pr.scale*3000; const w=h*0.5;
-    if(h<2) return;
+    const gx=spriteX(pr, sp.off); const gy=pr.y;
+    const h=pxW(pr, 1.15), w=h*0.5;
+    /* Too small to see, or so close it is only a smear of colour across the
+       edge of the frame: the projection clamps cz at 0.1, so a prop level with
+       the camera asks for a four-million-pixel path. Cull both ends. */
+    if(h<2 || h>H*7) return;
     drawProp(type, gx, gy, w, h, sp.solid);
+  }
+
+  /* ---- on-road obstacles ---- */
+  function drawHazard(pr, hz){
+    const gx=spriteX(pr, hz.off), gy=pr.y, w=pxW(pr, HAZ_W[hz.type]);
+    if(w<1.2) return;
+    ctx.save();
+    if(hz.type==='slick'){
+      // a spill lies FLAT on the road: an oily ellipse with a sheen, no height
+      ctx.globalAlpha=0.78; ctx.fillStyle='#17121a';
+      ctx.beginPath(); ctx.ellipse(gx, gy, w*0.5, Math.max(1,w*0.17), 0,0,7); ctx.fill();
+      ctx.globalAlpha=0.5; ctx.fillStyle='#6f5bd6';
+      ctx.beginPath(); ctx.ellipse(gx-w*0.1, gy-w*0.02, w*0.22, Math.max(1,w*0.07), 0,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    } else if(hz.type==='cone'){
+      const h=w*1.5;
+      ctx.fillStyle='#3e323a'; ctx.fillRect(gx-w*0.55, gy-Math.max(1,h*0.1), w*1.1, Math.max(1,h*0.1));
+      ctx.fillStyle='#f2a03d'; ctx.beginPath(); ctx.moveTo(gx, gy-h); ctx.lineTo(gx+w*0.5, gy); ctx.lineTo(gx-w*0.5, gy); ctx.closePath(); ctx.fill();
+      if(w>5){ ctx.fillStyle='#fff'; ctx.fillRect(gx-w*0.28, gy-h*0.62, w*0.56, Math.max(1,h*0.16)); }
+      ctx.strokeStyle='#160f14'; ctx.lineWidth=Math.max(1,w*0.06); ctx.stroke();
+    } else { // barrier — a striped block across one lane
+      const h=w*0.62;
+      ctx.fillStyle='#c0392b'; ctx.fillRect(gx-w*0.5, gy-h, w, h);
+      if(w>6){ ctx.fillStyle='#f4f4f8'; const n=3;
+        for(let k=0;k<n;k++) ctx.fillRect(gx-w*0.5 + (k*2+1)*(w/(n*2)), gy-h, w/(n*2), h); }
+      ctx.strokeStyle='#160f14'; ctx.lineWidth=Math.max(1,w*0.05); ctx.strokeRect(gx-w*0.5, gy-h, w, h);
+      ctx.fillStyle='#3e323a'; ctx.fillRect(gx-w*0.5, gy-Math.max(1,h*0.14), w, Math.max(1,h*0.14));
+    }
+    ctx.restore();
   }
   function drawProp(type,x,yBase,w,h,solid){
     const OUT='#2a1e26'; ctx.save();
@@ -1109,8 +1281,8 @@ if(!HEADLESS){
 
   const CARCOL={ cam:{b:'#3a6ff7',t:'#2a4fb7'}, sip:{b:'#f2a03d',t:'#b8701f'}, ticker:{b:'#5f4c57',t:'#3e323a'} };
   function drawCar(pr, c){
-    const gx=spriteX(pr, c.off), gy=pr.y; const scale=pr.scale;
-    let w=scale*2600; if(c.type==='ticker') w*=1.35; let h=w*0.7; if(w<3)return;
+    const gx=spriteX(pr, c.off), gy=pr.y;
+    let w=pxW(pr, CAR_W); if(c.type==='ticker') w*=TICKER_MUL; let h=w*0.7; if(w<1.2)return;
     const col=CARCOL[c.type]||CARCOL.cam; const OUT='#160f14';
     ctx.save();
     // shadow
@@ -1135,6 +1307,7 @@ if(!HEADLESS){
     let tilt=clamp(s.steerAng,-1,1);
     let bob=Math.sin(s.timeMs/60)*spdPct*1.5 + (s.offRoad?(Math.random()-0.5)*3:0);
     let sway = -s.steerAng*10;
+    if(s.slick>0){ tilt += Math.sin(s.timeMs/70)*0.5; sway += Math.sin(s.timeMs/55)*6; }
     ctx.save();
     let cy=baseY+bob;
     if(s.crash>0){ // spin / tumble
@@ -1212,6 +1385,34 @@ if(!HEADLESS){
       ctx.fillText('CHECK POINT', W/2, H/2-18); ctx.font='18px "Jersey 15", system-ui'; ctx.fillStyle='#fff'; ctx.fillText(flashText, W/2, H/2+6); ctx.textAlign='left'; }
     // off-road tag
     if(s.offRoad && uiPhase==='run'){ text('OFF-ROAD', W/2, H-46, 12, '#ffd24a','center'); }
+    /* Spill tag — say WHY the steering went light, or it reads as the game
+       having broken. On its own plate: at H-60 it landed on the red bodywork
+       of the player's own car and could not be read at all. */
+    if(s.slick>0 && uiPhase==='run'){
+      ctx.fillStyle='rgba(20,14,24,.72)'; ctx.fillRect(W/2-74, H*0.40, 148, 20);
+      text('SPILL \u2014 NO GRIP', W/2, H*0.40+14, 13, '#b9a8ff','center');
+    }
+
+    /* ---- FORK SIGN ----
+       The branch is DRIVEN: whichever side of the line you cross on picks the
+       next stage. Nothing on screen ever said so, so the single decision this
+       game asks you to make was invisible and the route tree in the corner
+       looked like decoration. Call it before the line, and light the side the
+       car is actually on. */
+    if(!s.track.isGoal && uiPhase==='run' && s.track.L && s.track.R){
+      const segsLeft = s.track.len - Math.floor((s.pos+CAM_H*CAM_DEPTH)/SEG_LEN);
+      if(segsLeft>0 && segsLeft<130){
+        const right = s.playerX > 0.12;
+        const fade = segsLeft>110 ? (130-segsLeft)/20 : 1;
+        ctx.globalAlpha = Math.min(1,fade);
+        ctx.fillStyle='rgba(20,14,24,.62)'; ctx.fillRect(W/2-150, 48, 300, 26);
+        text('CHOOSE YOUR ROAD', W/2, 58, 9, 'rgba(255,255,255,.75)','center');
+        const Lname=(STAGES[s.track.L]||{}).name||'LEFT', Rname=(STAGES[s.track.R]||{}).name||'RIGHT';
+        text('\u25c0 '+Lname, W/2-8, 70, 12, right?'rgba(255,255,255,.45)':'#f2a03d','right');
+        text(Rname+' \u25b6', W/2+8, 70, 12, right?'#f2a03d':'rgba(255,255,255,.45)','left');
+        ctx.globalAlpha=1;
+      }
+    }
   }
 
   function drawRadio(){
@@ -1343,6 +1544,7 @@ if(!HEADLESS){
         if(ev.pass) sfx('pass');
         if(ev.crash==='shunt') sfx('shunt');
         if(ev.crash==='bin'){ sfx('bin'); }
+        if(ev.slick) sfx('slick');
         if(ev.checkpoint){ sfx('check'); flashCheck=1400; flashText='EXTEND +'+ev.checkpoint; }
         if(ev.rumble && Math.floor(s.timeMs/90)%2===0) {}
         guard++; }
