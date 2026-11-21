@@ -1779,7 +1779,9 @@ if(!HEADLESS){
       { bpm:132, root:110.00, scale:[0,3,7,10,7,3,0,-2],bass:[0,0,3,0,-2,-2,0,3],type:'sawtooth', hat:0.7 }  // minor driving
     ]
   };
-  let radioSel=0, radioTimer=null, radioStep=0;
+  /* the station is REMEMBERED (2026-11-21 first-minute fix): the race no longer waits behind a pick-a-theme menu */
+  let radioSel=(function(){ try{ const v=+localStorage.getItem('botrun:radio'); return v>=0&&v<3?v:0; }catch(e){ return 0; } })(), radioTimer=null, radioStep=0;
+  function setStation(i){ radioSel=i; try{ localStorage.setItem('botrun:radio', String(i)); }catch(e){} stationT=1600; if(uiPhase==='ready'||uiPhase==='run') startRadio(); }
   function note(a,freq,dur,type,vol){ const o=a.createOscillator(),g=a.createGain(); o.connect(g);g.connect(a.destination);
     o.type=type; o.frequency.value=freq; g.gain.value=vol; g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+dur); o.start(); o.stop(a.currentTime+dur+0.02); }
   function hat(a,vol){ const b=a.createBuffer(1,256,a.sampleRate),d=b.getChannelData(0); for(let i=0;i<256;i++)d[i]=(Math.random()*2-1)*0.5;
@@ -1796,7 +1798,8 @@ if(!HEADLESS){
   /* ================= UI / FLOW STATE ==================================== */
   let uiPhase='run';          // idle | radio | ready | run | over
   let readyT=0;               // ready countdown ms
-  let flashCheck=0, flashText='', shakeT=0;
+  let flashCheck=0, flashText='', shakeT=0, stationT=0;
+  const keyboardish=(function(){ try{ return matchMedia('(pointer: fine)').matches; }catch(e){ return true; } })();   // the 1/2/3 hint only where there is a keyboard   // stationT: the radio name, shown a moment after 1/2/3
   let paidActive=false;
 
   // ---- overlays ----
@@ -2167,11 +2170,12 @@ if(!HEADLESS){
     renderRoad(); drawHero(); drawHUD();
     ctx.fillStyle='rgba(20,14,24,.35)'; ctx.fillRect(0,0,W,H);
     ctx.textAlign='center';
-    if(readyT>600){ text('GET READY', W/2, H/2, 34, '#fff','center'); }
+    if(readyT>600){ text('GET READY', W/2, H/2, 34, '#fff','center'); text('\u266A '+RADIO.names[radioSel]+(keyboardish?'  \u00b7  1 2 3 changes the radio':''), W/2, H/2+26, 11, 'rgba(255,255,255,.8)','center'); }
     else { text('GO!', W/2, H/2, 44, '#f2a03d','center'); }
     ctx.textAlign='left';
   }
-  function drawGame(){ renderRoad(); drawHero(); drawHUD(); }
+  function drawStation(){ if(stationT<=0) return; ctx.textAlign='center'; text('\u266A '+RADIO.names[radioSel], W/2, H-34, 14, '#f2a03d','center'); ctx.textAlign='left'; }
+  function drawGame(){ renderRoad(); drawHero(); drawHUD(); drawStation(); }
   function drawIdle(){ ctx.fillStyle='#20150f'; ctx.fillRect(0,0,W,H); ctx.textAlign='center'; text('BOTRUN', W/2, H/2-6, 34,'#f2a03d','center'); text('paid — press Play', W/2, H/2+20, 14,'#fff','center'); ctx.textAlign='left'; }
 
   function draw(){
@@ -2192,6 +2196,7 @@ if(!HEADLESS){
     if(e.key==='Escape'){ closeRules(); return; }
     if(e.key==='r'||e.key==='R'){ doRestart(); return; }
     if(e.key==='m'||e.key==='M'){ if(muteBtn)muteBtn.click(); return; }
+    if(e.key==='1'||e.key==='2'||e.key==='3'){ setStation(+e.key-1); return; }   // change station any time
     if(uiPhase==='radio'){ if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ radioSel=(radioSel+2)%3; sfx('beep'); } else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ radioSel=(radioSel+1)%3; sfx('beep'); } else if(e.key===' '||e.key==='Enter'){ confirmRadio(); } e.preventDefault(); return; }
     if(e.key===' '||e.key==='Shift'||e.key==='e'||e.key==='E'){ gearToggle(); e.preventDefault(); return; }
     const m=KMAP[e.key]; if(m){ key[m]=true; e.preventDefault(); }
@@ -2228,7 +2233,10 @@ if(!HEADLESS){
   }
 
   /* ================= FLOW ============================================== */
-  function beginRadio(){ uiPhase='radio'; }
+  /* First-minute review, 2026-11-21: every race opened on a RADIO menu (pick a theme, then GO) — one more screen to
+     read and dismiss before a child could drive, on a game whose visitors mostly never started a run. The race now goes
+     straight to GET READY on the remembered station; 1/2/3 changes it at any time. (The menu screen is kept, unused.) */
+  function beginRadio(){ uiPhase='ready'; readyT=1400; startRadio(); }
   function confirmRadio(){ if(uiPhase!=='radio')return; sfx('go'); uiPhase='ready'; readyT=1400; startRadio(); }
   function doRestart(){ overO.classList.remove('show'); document.getElementById('paidOverlay').classList.remove('show');
     if(paidActive){ window.BOTRUNPaid && BOTRUNPaid.showPaidStart && BOTRUNPaid.showPaidStart(); paidActive=false; s=freshRun(); uiPhase='idle'; stopRadio(); return; }
@@ -2291,6 +2299,7 @@ if(!HEADLESS){
       if(s.phase!=='play' && !ended){ ended=true; endRun(); }
     } else { acc=0; }
     if(uiPhase==='run' && s.phase==='play') ended=false;
+    if(stationT>0) stationT-=dt;
     syncHUD(); draw(); requestAnimationFrame(frame);
   }
   let ended=false, beepSec=-1;
